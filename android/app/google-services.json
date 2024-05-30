@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "956543722682",
+    "project_id": "ukbtapp",
+    "storage_bucket": "ukbtapp.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:956543722682:android:585fae88e7cfeaa3cece83",
+        "android_client_info": {
+          "package_name": "com.ukbt.ukbtapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "956543722682-mfuhtsuf52j1v02dg2ljusqkngou73t0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ukbt.ukbtapp",
+            "certificate_hash": "1e291f0ff3fdab3a6950ff1f055236ae8160d82d"
+          }
+        },
+        {
+          "client_id": "956543722682-f67os4fksf7th7e9l4s8vgo0uengknuu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJ7j6UkusqSYmYJVxOhX5FBNJIHgRoPzg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "956543722682-f67os4fksf7th7e9l4s8vgo0uengknuu.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "956543722682-6ue191e3143gujdvj680sqdp2hi2faon.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.ukbt.ukbtapp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
