@@ -3,12 +3,14 @@ class User {
   final String email;
   final String name;
   final int elo;
+  final String ukbtno;
 
   User({
     required this.uid,
     required this.email,
     required this.name,
     required this.elo,
+    required this.ukbtno,
   });
 
   factory User.fromMap(Map<String, dynamic> data) {
@@ -17,6 +19,7 @@ class User {
       email: data['email'],
       name: data['name'],
       elo: data['elo'],
+      ukbtno: data['ukbtno'],
     );
   }
 
@@ -26,6 +29,7 @@ class User {
       'email': email,
       'name': name,
       'elo': elo,
+      'ukbtno': ukbtno,
     };
   }
 }

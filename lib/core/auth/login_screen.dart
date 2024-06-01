@@ -34,7 +34,7 @@ class LoginScreen extends StatelessWidget {
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
                 onPressed: () async {
                   await authService.googleLogin();
-                  Navigator.pushReplacementNamed(context, '/home');
+                  Navigator.pushReplacementNamed(context, '/');
                 },
               ),
             ],

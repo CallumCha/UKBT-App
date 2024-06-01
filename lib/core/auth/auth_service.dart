@@ -54,11 +54,12 @@ class AuthService {
     final snapshot = await userDoc.get();
     if (!snapshot.exists) {
       final data = {
-        'namef': user.displayName?.split(' ').first ?? '',
-        'namel': user.displayName?.split(' ').last ?? '',
+        'name': user.displayName ?? '',
+        'email': user.email ?? '',
         'elo': 1200,
         'uid': user.uid,
-        'ukbtno': await _generateUkbtno(),
+        'ukbtno': (await _generateUkbtno()).toString(),
+        'admin': false, // Default admin role set to false
       };
 
       await userDoc.set(data);
@@ -84,5 +85,14 @@ class AuthService {
 
   Future<User?> getCurrentUser() async {
     return _auth.currentUser;
+  }
+
+  Future<bool> isAdmin() async {
+    final user = _auth.currentUser;
+    if (user != null) {
+      final userDoc = await _db.collection('users').doc(user.uid).get();
+      return userDoc.data()?['admin'] ?? false;
+    }
+    return false;
   }
 }
