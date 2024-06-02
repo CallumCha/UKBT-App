@@ -45,7 +45,7 @@ class PoolGenerator {
     final standings = _generateStandings(teams);
 
     return Pool(
-      id: UniqueKey().toString(), // Ensure unique ID for each pool
+      id: UniqueKey().toString(),
       name: name,
       teams: teams.map((team) => team.toMap()).toList(),
       matches: matches,
@@ -61,7 +61,7 @@ class PoolGenerator {
         matches.add({
           'team1': teams[i].toMap(),
           'team2': teams[j].toMap(),
-          'result': null, // Result will be updated later
+          'result': null,
         });
       }
     }
@@ -121,7 +121,6 @@ class PoolGenerator {
       }
     });
 
-    // Sort standings
     pool.standings.sort((a, b) {
       final int winsA = a['w'] as int;
       final int winsB = b['w'] as int;
