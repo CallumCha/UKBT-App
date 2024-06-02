@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 import 'models/pool_model.dart';
 import 'models/team_model.dart';
 
@@ -43,10 +45,12 @@ class PoolGenerator {
     final standings = _generateStandings(teams);
 
     return Pool(
+      id: UniqueKey().toString(), // Ensure unique ID for each pool
       name: name,
       teams: teams.map((team) => team.toMap()).toList(),
       matches: matches,
       standings: standings,
+      noMatches: matches.length,
     );
   }
 
@@ -88,5 +92,45 @@ class PoolGenerator {
     });
 
     return standings;
+  }
+
+  void updateStandings(Pool pool, int matchIndex, int team1Sets, int team2Sets) {
+    final match = pool.matches[matchIndex];
+    final team1 = match['team1'];
+    final team2 = match['team2'];
+
+    pool.standings.forEach((standing) {
+      if (standing['team']['ukbtno1'] == team1['ukbtno1'] && standing['team']['ukbtno2'] == team1['ukbtno2']) {
+        standing['mp'] += 1;
+        standing['sWon'] += team1Sets;
+        standing['sLost'] += team2Sets;
+        if (team1Sets > team2Sets) {
+          standing['w'] += 1;
+        } else {
+          standing['l'] += 1;
+        }
+      } else if (standing['team']['ukbtno1'] == team2['ukbtno1'] && standing['team']['ukbtno2'] == team2['ukbtno2']) {
+        standing['mp'] += 1;
+        standing['sWon'] += team2Sets;
+        standing['sLost'] += team1Sets;
+        if (team2Sets > team1Sets) {
+          standing['w'] += 1;
+        } else {
+          standing['l'] += 1;
+        }
+      }
+    });
+
+    // Sort standings
+    pool.standings.sort((a, b) {
+      final int winsA = a['w'] as int;
+      final int winsB = b['w'] as int;
+      if (winsA != winsB) {
+        return winsB.compareTo(winsA);
+      }
+      final int setsDiffA = (a['sWon'] as int) - (a['sLost'] as int);
+      final int setsDiffB = (b['sWon'] as int) - (b['sLost'] as int);
+      return setsDiffB.compareTo(setsDiffA);
+    });
   }
 }

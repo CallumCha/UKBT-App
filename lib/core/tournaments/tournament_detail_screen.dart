@@ -3,8 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:ukbtapp/core/auth/auth_service.dart';
-import 'package:ukbtapp/core/tournaments/knockout_generator.dart';
-import 'package:ukbtapp/core/tournaments/score_updater.dart';
 import 'package:ukbtapp/core/tournaments/models/team_model.dart';
 import 'package:ukbtapp/core/tournaments/models/pool_model.dart';
 import 'package:ukbtapp/core/tournaments/pool_generator.dart';
@@ -27,13 +25,6 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
   Map<String, dynamic>? _tournamentData;
   List<Team> _teams = [];
   List<Pool> _pools = [];
-  Map<String, List<Map<String, dynamic>>> _knockoutRounds = {
-    'Quarter-finals': [],
-    'Semi-finals': [],
-    'Finals': []
-  };
-  int team1Sets = 0;
-  int team2Sets = 0;
 
   @override
   void initState() {
@@ -61,42 +52,23 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
       if (doc.exists) {
         final tournamentData = doc.data();
         if (tournamentData != null) {
-          // Debug print to understand the structure of tournamentData
           print("Tournament Data: $tournamentData");
 
-          // Ensure that the data structures are correctly converted
           final teams = (tournamentData['teams'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList() ?? [];
           final teamDetails = await _fetchTeamDetails(teams);
 
-          // Correctly handle pools data
-          final poolsMap = tournamentData['pools'] as Map<String, dynamic>?;
-          List<Pool> pools = [];
-
-          if (poolsMap != null) {
-            poolsMap.forEach((key, value) {
-              if (value is List<dynamic>) {
-                value.forEach((poolData) {
-                  if (poolData is Map<String, dynamic>) {
-                    pools.add(Pool.fromMap(poolData));
-                  }
-                });
-              }
-            });
-          }
+          final poolsList = (tournamentData['pools'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList() ?? [];
+          final pools = poolsList.map((poolData) => Pool.fromMap(poolData)).toList();
 
           setState(() {
             _tournamentData = tournamentData;
             _registrationOpen = tournamentData['registrationOpen'] ?? true;
             _teams = teamDetails;
             _pools = pools;
-            _knockoutRounds['Quarter-finals'] = (tournamentData['quarterFinals'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList() ?? [];
-            _knockoutRounds['Semi-finals'] = (tournamentData['semiFinals'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList() ?? [];
-            _knockoutRounds['Finals'] = (tournamentData['finals'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList() ?? [];
           });
         }
       }
     } catch (e) {
-      // Handle or log the error
       print(e);
     }
   }
@@ -161,51 +133,6 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     }
   }
 
-  Future<void> _toggleRegistration() async {
-    final tournamentDoc = FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId);
-
-    if (_registrationOpen) {
-      // Generate pools and knockouts
-      await _generatePoolsAndKnockouts();
-    }
-
-    await tournamentDoc.update({
-      'registrationOpen': !_registrationOpen,
-    });
-
-    setState(() {
-      _registrationOpen = !_registrationOpen;
-    });
-  }
-
-  Future<void> _generatePoolsAndKnockouts() async {
-    // Calculate team ELOs and sort teams by ELO
-    _teams.sort((a, b) {
-      final eloA = (int.parse(a.elo1) + int.parse(a.elo2)) / 2;
-      final eloB = (int.parse(b.elo1) + int.parse(b.elo2)) / 2;
-      return eloB.compareTo(eloA); // Sort in descending order
-    });
-
-    final poolGenerator = PoolGenerator();
-    final pools = poolGenerator.createPools(_teams);
-    final knockoutGenerator = KnockoutGenerator();
-    final knockoutRounds = knockoutGenerator.createKnockouts(_teams.length);
-
-    // Update the tournament document with pools and knockouts
-    final tournamentDoc = FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId);
-    await tournamentDoc.update({
-      'pools': pools.map((pool) => pool.toMap()).toList(),
-      'quarterFinals': knockoutRounds['Quarter-finals'],
-      'semiFinals': knockoutRounds['Semi-finals'],
-      'finals': knockoutRounds['Finals'],
-    });
-
-    setState(() {
-      _pools = pools;
-      _knockoutRounds = knockoutRounds;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -217,9 +144,13 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
               ? [
                   Switch(
                     value: _registrationOpen,
-                    onChanged: (value) {
-                      _toggleRegistration();
+                    onChanged: (value) async {
+                      await _toggleRegistration();
                     },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: _addTeams,
                   ),
                 ]
               : null,
@@ -238,18 +169,6 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
             _buildMatchesTab(),
           ],
         ),
-        bottomNavigationBar: _registrationOpen
-            ? Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _submitRegistration,
-                    child: const Text('Register'),
-                  ),
-                ),
-              )
-            : null,
       ),
     );
   }
@@ -257,433 +176,338 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
   Widget _buildDetailsTab() {
     return _tournamentData == null
         ? const Center(child: CircularProgressIndicator())
-        : Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Name: ${_tournamentData?['name']}', style: const TextStyle(fontSize: 18)),
-                const SizedBox(height: 10),
-                Text('Date: ${_tournamentData?['date']}', style: const TextStyle(fontSize: 18)),
-                const SizedBox(height: 10),
-                Text('Level: ${_tournamentData?['level']}', style: const TextStyle(fontSize: 18)),
-                const SizedBox(height: 10),
-                Text('Location: ${_tournamentData?['location']}', style: const TextStyle(fontSize: 18)),
-                const SizedBox(height: 10),
-                Text('Gender: ${_tournamentData?['gender']}', style: const TextStyle(fontSize: 18)),
-                const SizedBox(height: 20),
-                const Text('Teams Registered:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: _teams.isEmpty
+        : SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Name: ${_tournamentData?['name']}', style: const TextStyle(fontSize: 18)),
+                  const SizedBox(height: 10),
+                  Text('Date: ${_tournamentData?['date']}', style: const TextStyle(fontSize: 18)),
+                  const SizedBox(height: 10),
+                  Text('Level: ${_tournamentData?['level']}', style: const TextStyle(fontSize: 18)),
+                  const SizedBox(height: 10),
+                  Text('Location: ${_tournamentData?['location']}', style: const TextStyle(fontSize: 18)),
+                  const SizedBox(height: 10),
+                  Text('Gender: ${_tournamentData?['gender']}', style: const TextStyle(fontSize: 18)),
+                  const SizedBox(height: 20),
+                  const Text('Teams Registered:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  _teams.isEmpty
                       ? const Center(child: Text('No teams registered yet'))
-                      : SingleChildScrollView(
-                          child: Table(
-                            border: TableBorder.all(),
-                            columnWidths: const {
-                              0: FlexColumnWidth(1),
-                              1: FlexColumnWidth(3),
-                              2: FlexColumnWidth(3),
-                            },
-                            children: [
-                              const TableRow(children: [
+                      : Table(
+                          border: TableBorder.all(),
+                          columnWidths: const {
+                            0: FlexColumnWidth(1),
+                            1: FlexColumnWidth(3),
+                            2: FlexColumnWidth(3),
+                          },
+                          children: [
+                            const TableRow(children: [
+                              Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Text('#', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Text('Player 1', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Text('Player 2', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            ]),
+                            ..._teams.asMap().entries.map((entry) {
+                              final index = entry.key + 1;
+                              final team = entry.value;
+                              return TableRow(children: [
                                 Padding(
-                                  padding: EdgeInsets.all(8.0),
-                                  child: Text('#', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Text('$index'),
                                 ),
                                 Padding(
-                                  padding: EdgeInsets.all(8.0),
-                                  child: Text('Player 1', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Text(team.user1Name),
                                 ),
                                 Padding(
-                                  padding: EdgeInsets.all(8.0),
-                                  child: Text('Player 2', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Text(team.user2Name),
                                 ),
-                              ]),
-                              ..._teams.asMap().entries.map((entry) {
-                                final index = entry.key + 1;
-                                final team = entry.value;
-                                return TableRow(children: [
-                                  Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Text('$index'),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Text(team.user1Name),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Text(team.user2Name),
-                                  ),
-                                ]);
-                              }),
-                            ],
-                          ),
+                              ]);
+                            }),
+                          ],
                         ),
-                ),
-                if (_registrationOpen)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TextFormField(
-                            initialValue: _isAdmin ? _ukbtno1 : null,
-                            decoration: const InputDecoration(labelText: 'UKBT Number 1'),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter a valid UKBT Number';
-                              }
-                              return null;
-                            },
-                            onSaved: (value) {
-                              _ukbtno1 = value ?? '';
-                            },
-                          ),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            decoration: const InputDecoration(labelText: 'UKBT Number 2'),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter a valid UKBT Number';
-                              }
-                              return null;
-                            },
-                            onSaved: (value) {
-                              _ukbtno2 = value ?? '';
-                            },
-                          ),
-                          const SizedBox(height: 20),
-                          ElevatedButton(
-                            onPressed: _addTeams,
-                            child: const Text('Add Teams'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
+                  if (_registrationOpen) _buildRegistrationForm(),
+                ],
+              ),
             ),
           );
+  }
+
+  Widget _buildRegistrationForm() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16.0),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextFormField(
+              initialValue: _isAdmin ? _ukbtno1 : null,
+              decoration: const InputDecoration(labelText: 'UKBT Number 1'),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter a valid UKBT Number';
+                }
+                return null;
+              },
+              onSaved: (value) {
+                _ukbtno1 = value ?? '';
+              },
+            ),
+            const SizedBox(height: 10),
+            TextFormField(
+              decoration: const InputDecoration(labelText: 'UKBT Number 2'),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter a valid UKBT Number';
+                }
+                return null;
+              },
+              onSaved: (value) {
+                _ukbtno2 = value ?? '';
+              },
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _submitRegistration,
+              child: const Text('Register'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildPoolsTab() {
-    return _pools.isEmpty
-        ? const Center(child: Text('Pools will be generated once registration is closed'))
-        : ListView.builder(
-            itemCount: _pools.length,
-            itemBuilder: (context, index) {
-              final pool = _pools[index];
-              final standings = pool.standings ?? [];
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(pool.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 10),
-                      Table(
-                        border: TableBorder.all(),
-                        columnWidths: const {
-                          0: FlexColumnWidth(4),
-                          1: FlexColumnWidth(1),
-                          2: FlexColumnWidth(1),
-                          3: FlexColumnWidth(1),
-                          4: FlexColumnWidth(1),
-                        },
-                        children: [
-                          const TableRow(
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return const Center(child: Text('Error fetching pools'));
+        }
+        if (!snapshot.hasData || snapshot.data?.data() == null) {
+          return const Center(child: Text('No pools data available'));
+        }
+
+        final tournamentData = snapshot.data!.data() as Map<String, dynamic>;
+        final poolsList = (tournamentData['pools'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList() ?? [];
+        final pools = poolsList.map((poolData) => Pool.fromMap(poolData)).toList();
+
+        return ListView.builder(
+          itemCount: pools.length,
+          itemBuilder: (context, index) {
+            final pool = pools[index];
+            final standings = pool.standings ?? [];
+            standings.sort((a, b) {
+              final int winsA = a['w'] as int;
+              final int winsB = b['w'] as int;
+              if (winsA != winsB) {
+                return winsB.compareTo(winsA);
+              }
+              final int setsDiffA = (a['sWon'] as int) - (a['sLost'] as int);
+              final int setsDiffB = (b['sWon'] as int) - (b['sLost'] as int);
+              return setsDiffB.compareTo(setsDiffA);
+            });
+            return Card(
+              margin: const EdgeInsets.all(8.0),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(pool.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    Table(
+                      border: TableBorder.all(),
+                      columnWidths: const {
+                        0: FlexColumnWidth(4),
+                        1: FlexColumnWidth(1),
+                        2: FlexColumnWidth(1),
+                        3: FlexColumnWidth(1),
+                        4: FlexColumnWidth(1),
+                      },
+                      children: [
+                        const TableRow(
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: Text('Team', style: TextStyle(fontWeight: FontWeight.bold)),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: Text('MP', style: TextStyle(fontWeight: FontWeight.bold)),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: Text('W', style: TextStyle(fontWeight: FontWeight.bold)),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: Text('L', style: TextStyle(fontWeight: FontWeight.bold)),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: Text('S', style: TextStyle(fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                        ...standings.map<TableRow>((standing) {
+                          final team = standing['team'];
+                          return TableRow(
                             children: [
                               Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: Text('Team', style: TextStyle(fontWeight: FontWeight.bold)),
+                                padding: const EdgeInsets.all(8.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(team['user1Name'] ?? 'Unknown'),
+                                    Text(team['user2Name'] ?? 'Unknown'),
+                                  ],
+                                ),
                               ),
                               Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: Text('MP', style: TextStyle(fontWeight: FontWeight.bold)),
+                                padding: const EdgeInsets.all(8.0),
+                                child: Text(standing['mp'].toString()),
                               ),
                               Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: Text('W', style: TextStyle(fontWeight: FontWeight.bold)),
+                                padding: const EdgeInsets.all(8.0),
+                                child: Text(standing['w'].toString()),
                               ),
                               Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: Text('L', style: TextStyle(fontWeight: FontWeight.bold)),
+                                padding: const EdgeInsets.all(8.0),
+                                child: Text(standing['l'].toString()),
                               ),
                               Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: Text('S', style: TextStyle(fontWeight: FontWeight.bold)),
+                                padding: const EdgeInsets.all(8.0),
+                                child: Text('${standing['sWon']}:${standing['sLost']}'),
                               ),
                             ],
-                          ),
-                          ...standings.map<TableRow>((standing) {
-                            final team = standing['team'];
-                            return TableRow(
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(team['user1Name'] ?? 'Unknown'),
-                                      Text(team['user2Name'] ?? 'Unknown'),
-                                    ],
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Text(standing['mp'].toString()),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Text(standing['w'].toString()),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Text(standing['l'].toString()),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Text('${standing['sWon']}:${standing['sLost']}'),
-                                ),
-                              ],
-                            );
-                          }),
-                        ],
-                      ),
-                    ],
-                  ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ],
                 ),
-              );
-            },
-          );
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Widget _buildMatchesTab() {
-    final tabs = [
-      'Pool Matches'
-    ];
-    if (_knockoutRounds['Quarter-finals'] != null && _knockoutRounds['Quarter-finals']!.isNotEmpty) {
-      tabs.add('Quarter-finals');
-    }
-    if (_knockoutRounds['Semi-finals'] != null && _knockoutRounds['Semi-finals']!.isNotEmpty) {
-      tabs.add('Semi-finals');
-    }
-    if (_knockoutRounds['Finals'] != null && _knockoutRounds['Finals']!.isNotEmpty) {
-      tabs.add('Finals');
-    }
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return const Center(child: Text('Error fetching matches'));
+        }
+        if (!snapshot.hasData || snapshot.data?.data() == null) {
+          return const Center(child: Text('No matches data available'));
+        }
 
-    return _pools.isEmpty
-        ? const Center(child: Text('Matches will be generated once registration is closed'))
-        : DefaultTabController(
-            length: tabs.length,
-            child: Column(
-              children: [
-                TabBar(
-                  isScrollable: true,
-                  tabs: tabs.map((tab) => Tab(text: tab)).toList(),
+        final tournamentData = snapshot.data!.data() as Map<String, dynamic>;
+        final poolsList = (tournamentData['pools'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList() ?? [];
+        final pools = poolsList.map((poolData) => Pool.fromMap(poolData)).toList();
+
+        return ListView.builder(
+          itemCount: pools.length,
+          itemBuilder: (context, poolIndex) {
+            final pool = pools[poolIndex];
+            final matches = pool.matches ?? [];
+            return Card(
+              margin: const EdgeInsets.all(8.0),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(pool.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    ...matches.asMap().entries.map((entry) {
+                      final matchIndex = entry.key;
+                      final match = entry.value;
+                      final result = match['result'];
+                      return ListTile(
+                        title: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${match['team1']['user1Name']} & ${match['team1']['user2Name']}'),
+                            Text('${match['team2']['user1Name']} & ${match['team2']['user2Name']}'),
+                          ],
+                        ),
+                        trailing: result == null
+                            ? ElevatedButton(
+                                onPressed: () => _showScoreInputPopup(context, poolIndex, matchIndex, match),
+                                child: const Text('Input Score'),
+                              )
+                            : Text('${result['setsTeam1']} - ${result['setsTeam2']}'),
+                      );
+                    }).toList(),
+                  ],
                 ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      _buildPoolMatchesTab(),
-                      if (_knockoutRounds['Quarter-finals'] != null && _knockoutRounds['Quarter-finals']!.isNotEmpty) _buildKnockoutMatchesTab('Quarter-finals', _knockoutRounds['Quarter-finals']!),
-                      if (_knockoutRounds['Semi-finals'] != null && _knockoutRounds['Semi-finals']!.isNotEmpty) _buildKnockoutMatchesTab('Semi-finals', _knockoutRounds['Semi-finals']!),
-                      if (_knockoutRounds['Finals'] != null && _knockoutRounds['Finals']!.isNotEmpty) _buildKnockoutMatchesTab('Finals', _knockoutRounds['Finals']!),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-  }
-
-  Widget _buildPoolMatchesTab() {
-    return Column(
-      children: [
-        Expanded(
-          child: ListView.builder(
-            itemCount: _pools.length,
-            itemBuilder: (context, poolIndex) {
-              final pool = _pools[poolIndex];
-              final matches = pool.matches ?? [];
-              return Card(
-                margin: const EdgeInsets.all(8.0),
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(pool.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 10),
-                      ...matches.asMap().entries.map((entry) {
-                        final matchIndex = entry.key;
-                        final match = entry.value;
-                        final result = match['result'];
-                        return ListTile(
-                          title: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('${match['team1']['user1Name']} & ${match['team1']['user2Name']}'),
-                              Text('${match['team2']['user1Name']} & ${match['team2']['user2Name']}'),
-                            ],
-                          ),
-                          trailing: ElevatedButton(
-                            onPressed: result == null ? () => _showScoreInputPopup(context, pool, matchIndex, match) : null,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: result == null ? Colors.blue : Colors.grey,
-                            ),
-                            child: Text(result == null ? 'Input Score' : 'Score Inputted'),
-                          ),
-                        );
-                      }).toList(),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: ElevatedButton(
-            onPressed: () => _showGenerateKnockoutsPopup(context),
-            child: const Text('Generate Knockouts'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildKnockoutMatchesTab(String round, List<Map<String, dynamic>> matches) {
-    return ListView.builder(
-      itemCount: matches.length,
-      itemBuilder: (context, index) {
-        final pool = _pools[index];
-        final match = matches[index];
-        final team1 = match['team1'];
-        final team2 = match['team2'];
-        final result = match['result'] as Map<String, int>?;
-
-        return Card(
-          margin: const EdgeInsets.all(8.0),
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(round, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
-                ListTile(
-                  title: Text(team1 is Map<String, String> ? '${team1['user1Name']} & ${team1['user2Name']}' : team1.toString()),
-                  trailing: result != null ? Text('${result['setsTeam1']} - ${result['setsTeam2']}') : const Text('0 - 0'),
-                ),
-                ListTile(
-                  title: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('${match['team1']['user1Name']} & ${match['team1']['user2Name']}'),
-                      Text('${match['team2']['user1Name']} & ${match['team2']['user2Name']}'),
-                    ],
-                  ),
-                  trailing: ElevatedButton(
-                    onPressed: result == null ? () => _showScoreInputPopup(context, pool, index, match) : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: result == null ? Colors.blue : Colors.grey,
-                    ),
-                    child: Text(result == null ? 'Input Score' : 'Score Inputted'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showScoreInputPopup(BuildContext context, Pool pool, int matchIndex, Map<String, dynamic> match) {
-    final team1 = match['team1'] as Map<String, dynamic>;
-    final team2 = match['team2'] as Map<String, dynamic>;
-
-    final TextEditingController team1SetsController = TextEditingController();
-    final TextEditingController team2SetsController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Enter Match Score'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('${team1['user1Name']} & ${team1['user2Name']} vs ${team2['user1Name']} & ${team2['user2Name']}'),
-              TextField(
-                controller: team1SetsController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: 'Sets won by ${team1['user1Name']} & ${team1['user2Name']}'),
               ),
-              TextField(
-                controller: team2SetsController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: 'Sets won by ${team2['user1Name']} & ${team2['user2Name']}'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final team1Sets = int.tryParse(team1SetsController.text) ?? 0;
-                final team2Sets = int.tryParse(team2SetsController.text) ?? 0;
-
-                final scoreUpdater = ScoreUpdater(widget.tournamentId);
-                await scoreUpdater.updateMatchResult(pool, matchIndex, team1Sets, team2Sets);
-
-                Navigator.of(context).pop();
-              },
-              child: const Text('Submit'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
   }
 
-  void _showGenerateKnockoutsPopup(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Generate Knockouts'),
-          content: const Text('This will generate the knockout matches. Are you sure you want to proceed?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                // You can add your logic here for generating knockouts if needed
-              },
-              child: const Text('Proceed'),
-            ),
-          ],
-        );
-      },
-    );
+  Future<void> _toggleRegistration() async {
+    try {
+      final tournamentDoc = FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId);
+      final docSnapshot = await tournamentDoc.get();
+      final data = docSnapshot.data();
+
+      if (data != null) {
+        if (_registrationOpen) {
+          await _generatePools();
+        }
+
+        await tournamentDoc.update({
+          'registrationOpen': !_registrationOpen
+        });
+        setState(() {
+          _registrationOpen = !_registrationOpen;
+        });
+      }
+    } catch (e) {
+      print(e);
+    }
+  }
+
+  Future<void> _generatePools() async {
+    final poolGenerator = PoolGenerator();
+    final pools = poolGenerator.createPools(_teams);
+
+    final tournamentDoc = FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId);
+    await tournamentDoc.update({
+      'pools': pools.map((pool) => pool.toMap()).toList(),
+    });
+
+    setState(() {
+      _pools = pools;
+    });
   }
 
   void _addTeams() {
@@ -711,9 +535,74 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     ];
 
     FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).update({
-      'teams': FieldValue.arrayUnion(teams)
+      'teams': FieldValue.arrayUnion(teams),
     }).then((_) {
       _fetchTournamentDetails(); // Refresh the tournament details after adding teams
     });
+  }
+
+  void _showScoreInputPopup(BuildContext context, int poolIndex, int matchIndex, Map<String, dynamic> match) {
+    final team1 = match['team1'];
+    final team2 = match['team2'];
+    final TextEditingController team1SetsController = TextEditingController();
+    final TextEditingController team2SetsController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Enter Match Score', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              Text('${team1['user1Name']} & ${team1['user2Name']} vs ${team2['user1Name']} & ${team2['user2Name']}'),
+              const SizedBox(height: 10),
+              TextField(
+                controller: team1SetsController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(labelText: 'Sets won by ${team1['user1Name']} & ${team1['user2Name']}'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: team2SetsController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(labelText: 'Sets won by ${team2['user1Name']} & ${team2['user2Name']}'),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () async {
+                  final team1Sets = int.tryParse(team1SetsController.text) ?? 0;
+                  final team2Sets = int.tryParse(team2SetsController.text) ?? 0;
+
+                  setState(() {
+                    final pools = _pools;
+                    if (poolIndex >= 0 && poolIndex < pools.length) {
+                      final pool = pools[poolIndex];
+                      if (matchIndex >= 0 && matchIndex < pool.matches.length) {
+                        pool.matches[matchIndex]['result'] = {
+                          'setsTeam1': team1Sets,
+                          'setsTeam2': team2Sets,
+                        };
+                        final poolGenerator = PoolGenerator();
+                        poolGenerator.updateStandings(pool, matchIndex, team1Sets, team2Sets);
+                        _pools = pools;
+                      }
+                    }
+                  });
+
+                  Navigator.pop(context);
+                  await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).update({
+                    'pools': _pools.map((pool) => pool.toMap()).toList(),
+                  });
+                },
+                child: const Text('Submit'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
