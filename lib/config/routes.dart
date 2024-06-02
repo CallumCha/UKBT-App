@@ -8,13 +8,13 @@ class Routes {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case '/':
-        return MaterialPageRoute(builder: (_) => HomeScreen());
+        return MaterialPageRoute(builder: (_) => const HomeScreen());
       case '/login':
-        return MaterialPageRoute(builder: (_) => LoginScreen());
+        return MaterialPageRoute(builder: (_) => const LoginScreen());
       case '/profile':
-        return MaterialPageRoute(builder: (_) => ProfileScreen());
+        return MaterialPageRoute(builder: (_) => const ProfileScreen());
       case '/tournaments':
-        return MaterialPageRoute(builder: (_) => TournamentScreen());
+        return MaterialPageRoute(builder: (_) => const TournamentScreen());
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(

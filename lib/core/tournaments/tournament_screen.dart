@@ -6,24 +6,26 @@ import 'tournament_detail_screen.dart'; // Import the new screen
 
 // Main Tournament Screen
 class TournamentScreen extends StatelessWidget {
+  const TournamentScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Tournaments'),
+        title: const Text('Tournaments'),
         actions: [
           IconButton(
-            icon: Icon(Icons.add),
+            icon: const Icon(Icons.add),
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => AddTournamentScreen()),
+                MaterialPageRoute(builder: (context) => const AddTournamentScreen()),
               );
             },
           ),
         ],
       ),
-      body: TournamentList(), // Display list of tournaments
+      body: const TournamentList(), // Display list of tournaments
       bottomNavigationBar: BottomNavBar(
         currentIndex: 2,
         onTap: (index) {
@@ -40,13 +42,15 @@ class TournamentScreen extends StatelessWidget {
 
 // Section for displaying the list of tournaments
 class TournamentList extends StatelessWidget {
+  const TournamentList({super.key});
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder(
       stream: FirebaseFirestore.instance.collection('tournaments').snapshots(),
       builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
         if (!snapshot.hasData) {
-          return Center(child: CircularProgressIndicator());
+          return const Center(child: CircularProgressIndicator());
         }
 
         return ListView(
@@ -72,6 +76,8 @@ class TournamentList extends StatelessWidget {
 
 // Section for adding a new tournament
 class AddTournamentScreen extends StatefulWidget {
+  const AddTournamentScreen({super.key});
+
   @override
   _AddTournamentScreenState createState() => _AddTournamentScreenState();
 }
@@ -110,9 +116,7 @@ class _AddTournamentScreenState extends State<AddTournamentScreen> {
         'level': _level,
         'location': _location,
         'gender': _gender,
-        'results': [],
         'pools': [],
-        'knockouts': [],
         'registrationOpen': true, // Add registration open field
         'teams': [], // Initialize an empty list for teams
       };
@@ -133,7 +137,7 @@ class _AddTournamentScreenState extends State<AddTournamentScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Add Tournament'),
+        title: const Text('Add Tournament'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -144,7 +148,7 @@ class _AddTournamentScreenState extends State<AddTournamentScreen> {
               // UI for inputting the tournament date
               TextFormField(
                 controller: _dateController,
-                decoration: InputDecoration(labelText: 'Date (dd-mm-yyyy)'),
+                decoration: const InputDecoration(labelText: 'Date (dd-mm-yyyy)'),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter a date';
@@ -167,7 +171,7 @@ class _AddTournamentScreenState extends State<AddTournamentScreen> {
               ),
               // UI for inputting the tournament title
               TextFormField(
-                decoration: InputDecoration(labelText: 'Title'),
+                decoration: const InputDecoration(labelText: 'Title'),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter a title';
@@ -180,7 +184,7 @@ class _AddTournamentScreenState extends State<AddTournamentScreen> {
               ),
               // UI for selecting the tournament level
               DropdownButtonFormField<String>(
-                decoration: InputDecoration(labelText: 'Level'),
+                decoration: const InputDecoration(labelText: 'Level'),
                 value: _level,
                 items: _levels.map((level) {
                   return DropdownMenuItem(
@@ -199,7 +203,7 @@ class _AddTournamentScreenState extends State<AddTournamentScreen> {
               ),
               // UI for inputting the tournament location
               TextFormField(
-                decoration: InputDecoration(labelText: 'Location'),
+                decoration: const InputDecoration(labelText: 'Location'),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter a location';
@@ -212,7 +216,7 @@ class _AddTournamentScreenState extends State<AddTournamentScreen> {
               ),
               // UI for selecting the tournament gender
               DropdownButtonFormField<String>(
-                decoration: InputDecoration(labelText: 'Gender'),
+                decoration: const InputDecoration(labelText: 'Gender'),
                 value: _gender,
                 items: _genders.map((gender) {
                   return DropdownMenuItem(
@@ -229,11 +233,11 @@ class _AddTournamentScreenState extends State<AddTournamentScreen> {
                   _gender = value ?? 'Male';
                 },
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               // UI for saving the tournament
               ElevatedButton(
                 onPressed: _submitForm,
-                child: Text('Save Tournament'),
+                child: const Text('Save Tournament'),
               ),
             ],
           ),

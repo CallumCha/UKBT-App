@@ -14,10 +14,12 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
@@ -33,7 +35,7 @@ class MyApp extends StatelessWidget {
             theme: appTheme,
             initialRoute: '/',
             onGenerateRoute: Routes.generateRoute,
-            home: AuthWrapper(),
+            home: const AuthWrapper(),
           );
         },
       ),
@@ -42,6 +44,8 @@ class MyApp extends StatelessWidget {
 }
 
 class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context);
@@ -50,13 +54,13 @@ class AuthWrapper extends StatelessWidget {
       stream: authService.userStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
+          return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         } else if (snapshot.hasData) {
-          return HomeScreen();
+          return const HomeScreen();
         } else {
-          return LoginScreen();
+          return const LoginScreen();
         }
       },
     );

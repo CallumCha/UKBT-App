@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ukbtapp/shared/bottom_nav.dart';
 
 class ProfileScreen extends StatelessWidget {
+  const ProfileScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context);
@@ -12,7 +14,7 @@ class ProfileScreen extends StatelessWidget {
 
     if (user == null) {
       return Scaffold(
-        body: Center(child: Text('No user found.')),
+        body: const Center(child: Text('No user found.')),
         bottomNavigationBar: BottomNavBar(
           currentIndex: 1,
           onTap: (index) {
@@ -30,7 +32,7 @@ class ProfileScreen extends StatelessWidget {
       future: authService.isAdmin(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
+          return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
@@ -38,25 +40,25 @@ class ProfileScreen extends StatelessWidget {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text('Profile'),
+            title: const Text('Profile'),
           ),
           body: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Name: ${user.displayName ?? 'No name'}', style: TextStyle(fontSize: 18)),
-                SizedBox(height: 10),
-                Text('Email: ${user.email ?? 'No email'}', style: TextStyle(fontSize: 18)),
-                SizedBox(height: 10),
-                Text('Role: ${isAdmin ? 'Admin' : 'User'}', style: TextStyle(fontSize: 18)),
-                SizedBox(height: 20),
+                Text('Name: ${user.displayName ?? 'No name'}', style: const TextStyle(fontSize: 18)),
+                const SizedBox(height: 10),
+                Text('Email: ${user.email ?? 'No email'}', style: const TextStyle(fontSize: 18)),
+                const SizedBox(height: 10),
+                Text('Role: ${isAdmin ? 'Admin' : 'User'}', style: const TextStyle(fontSize: 18)),
+                const SizedBox(height: 20),
                 ElevatedButton(
                   onPressed: () async {
                     await authService.signOut();
                     Navigator.pushReplacementNamed(context, '/login');
                   },
-                  child: Text('Sign Out'),
+                  child: const Text('Sign Out'),
                 ),
               ],
             ),
