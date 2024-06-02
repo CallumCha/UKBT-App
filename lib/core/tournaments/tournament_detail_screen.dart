@@ -27,6 +27,8 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     'Semi-finals': [],
     'Finals': []
   };
+  int team1Sets = 0;
+  int team2Sets = 0;
 
   @override
   void initState() {
@@ -60,11 +62,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
           _registrationOpen = tournamentData['registrationOpen'] ?? true;
           _teams = teamDetails;
           _pools = List<Map<String, dynamic>>.from(tournamentData['pools'] ?? []);
-          _knockoutRounds = {
-            'Quarter-finals': List<Map<String, dynamic>>.from(tournamentData['quarterFinals'] ?? []),
-            'Semi-finals': List<Map<String, dynamic>>.from(tournamentData['semiFinals'] ?? []),
-            'Finals': List<Map<String, dynamic>>.from(tournamentData['finals'] ?? [])
-          };
+          _knockoutRounds['Quarter-finals'] = List<Map<String, dynamic>>.from(tournamentData['quarterFinals'] ?? []);
+          _knockoutRounds['Semi-finals'] = List<Map<String, dynamic>>.from(tournamentData['semiFinals'] ?? []);
+          _knockoutRounds['Finals'] = List<Map<String, dynamic>>.from(tournamentData['finals'] ?? []);
         });
       }
     }
@@ -85,16 +85,16 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
       final user1Data = user1Doc?.data();
       final user2Data = user2Doc?.data();
 
-      final user1Name = user1Data != null ? user1Data['name'] : 'Unknown';
-      final user2Name = user2Data != null ? user2Data['name'] : 'Unknown';
+      final user1Name = user1Data?['name'] ?? 'Unknown';
+      final user2Name = user2Data?['name'] ?? 'Unknown';
 
       teamDetails.add({
         'user1Name': user1Name,
         'user2Name': user2Name,
         'ukbtno1': ukbtno1,
         'ukbtno2': ukbtno2,
-        'elo1': user1Data != null ? user1Data['elo'].toString() : '0',
-        'elo2': user2Data != null ? user2Data['elo'].toString() : '0',
+        'elo1': user1Data?['elo']?.toString() ?? '0',
+        'elo2': user2Data?['elo']?.toString() ?? '0',
       });
     }
     return teamDetails;
@@ -156,21 +156,8 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     });
 
     final numTeams = _teams.length;
-    final pools = <Map<String, dynamic>>[];
-    final knockoutRounds = {
-      'Quarter-finals': <Map<String, dynamic>>[],
-      'Semi-finals': <Map<String, dynamic>>[],
-      'Finals': <Map<String, dynamic>>[]
-    };
-
-    // Generate pools based on the number of teams
-    if (numTeams >= 5 && numTeams <= 12) {
-      pools.addAll(_createPools(numTeams));
-      final rounds = _createKnockouts(numTeams);
-      knockoutRounds['Quarter-finals'] = rounds['Quarter-finals'] ?? [];
-      knockoutRounds['Semi-finals'] = rounds['Semi-finals'] ?? [];
-      knockoutRounds['Finals'] = rounds['Finals'] ?? [];
-    }
+    final pools = _createPools(numTeams);
+    final knockoutRounds = _createKnockouts(numTeams);
 
     // Update the tournament document with pools and knockouts
     final tournamentDoc = FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId);
@@ -187,7 +174,6 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     });
   }
 
-  // Generate pools based on the number of teams (you can adjust this logic based on your needs)
   List<Map<String, dynamic>> _createPools(int numTeams) {
     final pools = <Map<String, dynamic>>[];
 
@@ -223,7 +209,6 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     return pools;
   }
 
-  // Create pool with matches and standings
   Map<String, dynamic> _createPool(String name, List<Map<String, String>> teams) {
     final matches = _generatePoolMatches(teams);
     final standings = _generateStandings(teams);
@@ -236,7 +221,6 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     };
   }
 
-  // Generate pool matches
   List<Map<String, dynamic>> _generatePoolMatches(List<Map<String, String>> teams) {
     final matches = <Map<String, dynamic>>[];
     for (int i = 0; i < teams.length; i++) {
@@ -251,7 +235,6 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     return matches;
   }
 
-  // Generate standings
   List<Map<String, dynamic>> _generateStandings(List<Map<String, String>> teams) {
     final standings = teams.map((team) {
       return {
@@ -264,7 +247,6 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
       };
     }).toList();
 
-    // Sort standings by wins and sets difference
     standings.sort((a, b) {
       final int winsA = a['w'] as int;
       final int winsB = b['w'] as int;
@@ -279,80 +261,141 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     return standings;
   }
 
-  // Generate knockout matches based on the number of teams (you can adjust this logic based on your needs)
   Map<String, List<Map<String, dynamic>>> _createKnockouts(int numTeams) {
-    final rounds = {
+    final knockoutRounds = {
       'Quarter-finals': <Map<String, dynamic>>[],
       'Semi-finals': <Map<String, dynamic>>[],
       'Finals': <Map<String, dynamic>>[]
     };
 
     if (numTeams == 5) {
-      rounds['Semi-finals']!.addAll([
+      knockoutRounds['Semi-finals'] = [
         {
-          'team1': _teams[0],
-          'team2': _teams[3]
+          'team1': 'Winner of Pool A',
+          'team2': 'Runner-up of Pool A',
+          'result': null
         },
         {
-          'team1': _teams[1],
-          'team2': _teams[2]
-        },
-      ]);
-      rounds['Finals']!.add({
-        'team1': 'Winner of Semifinal 1',
-        'team2': 'Winner of Semifinal 2'
-      });
+          'team1': '3rd Place of Pool A',
+          'team2': '4th Place of Pool A',
+          'result': null
+        }
+      ];
+      knockoutRounds['Finals'] = [
+        {
+          'team1': 'Winner of Semifinal 1',
+          'team2': 'Winner of Semifinal 2',
+          'result': null
+        }
+      ];
     } else if (numTeams == 6 || numTeams == 7 || numTeams == 8) {
-      rounds['Semi-finals']!.addAll([
+      knockoutRounds['Semi-finals'] = [
         {
-          'team1': _teams[0],
-          'team2': _teams[1]
+          'team1': 'Winner of Pool A',
+          'team2': 'Runner-up of Pool B',
+          'result': null
         },
         {
-          'team1': _teams[2],
-          'team2': _teams[3]
-        },
-      ]);
-      rounds['Finals']!.add({
-        'team1': 'Winner of Semifinal 1',
-        'team2': 'Winner of Semifinal 2'
-      });
+          'team1': 'Winner of Pool B',
+          'team2': 'Runner-up of Pool A',
+          'result': null
+        }
+      ];
+      knockoutRounds['Finals'] = [
+        {
+          'team1': 'Winner of Semifinal 1',
+          'team2': 'Winner of Semifinal 2',
+          'result': null
+        }
+      ];
     } else if (numTeams == 9 || numTeams == 10 || numTeams == 11 || numTeams == 12) {
-      rounds['Quarter-finals']!.addAll([
+      knockoutRounds['Quarter-finals'] = [
         {
-          'team1': _teams[0],
-          'team2': _teams[1]
+          'team1': 'Winner of Pool A',
+          'team2': 'Runner-up of Pool B',
+          'result': null
         },
         {
-          'team1': _teams[2],
-          'team2': _teams[3]
+          'team1': 'Winner of Pool B',
+          'team2': 'Runner-up of Pool A',
+          'result': null
         },
         {
-          'team1': _teams[4],
-          'team2': _teams[5]
+          'team1': 'Winner of Pool C',
+          'team2': 'Runner-up of Pool D',
+          'result': null
         },
         {
-          'team1': _teams[6],
-          'team2': _teams[7]
-        },
-      ]);
-      rounds['Semi-finals']!.addAll([
+          'team1': 'Winner of Pool D',
+          'team2': 'Runner-up of Pool C',
+          'result': null
+        }
+      ];
+      knockoutRounds['Semi-finals'] = [
         {
           'team1': 'Winner of Quarter-final 1',
-          'team2': 'Winner of Quarter-final 2'
+          'team2': 'Winner of Quarter-final 2',
+          'result': null
         },
         {
           'team1': 'Winner of Quarter-final 3',
-          'team2': 'Winner of Quarter-final 4'
-        },
-      ]);
-      rounds['Finals']!.add({
-        'team1': 'Winner of Semifinal 1',
-        'team2': 'Winner of Semifinal 2'
-      });
+          'team2': 'Winner of Quarter-final 4',
+          'result': null
+        }
+      ];
+      knockoutRounds['Finals'] = [
+        {
+          'team1': 'Winner of Semifinal 1',
+          'team2': 'Winner of Semifinal 2',
+          'result': null
+        }
+      ];
     }
 
-    return rounds;
+    return knockoutRounds;
+  }
+
+  void _updateStandings(Map<String, String> team1, Map<String, String> team2, int team1Sets, int team2Sets) {
+    setState(() {
+      for (final pool in _pools) {
+        final standings = pool['standings'];
+        final team1Standing = standings.firstWhere((standing) => standing['team'] == team1, orElse: () => null);
+        final team2Standing = standings.firstWhere((standing) => standing['team'] == team2, orElse: () => null);
+
+        if (team1Standing != null && team2Standing != null) {
+          team1Standing['mp'] = (team1Standing['mp'] ?? 0) + 1;
+          team2Standing['mp'] = (team2Standing['mp'] ?? 0) + 1;
+
+          if (team1Sets > team2Sets) {
+            team1Standing['w'] = (team1Standing['w'] ?? 0) + 1;
+            team2Standing['l'] = (team2Standing['l'] ?? 0) + 1;
+          } else {
+            team1Standing['l'] = (team1Standing['l'] ?? 0) + 1;
+            team2Standing['w'] = (team2Standing['w'] ?? 0) + 1;
+          }
+
+          team1Standing['sWon'] = (team1Standing['sWon'] ?? 0) + team1Sets;
+          team1Standing['sLost'] = (team1Standing['sLost'] ?? 0) + team2Sets;
+          team2Standing['sWon'] = (team2Standing['sWon'] ?? 0) + team2Sets;
+          team2Standing['sLost'] = (team2Standing['sLost'] ?? 0) + team1Sets;
+
+          standings.sort((a, b) {
+            final int winsA = a['w'] ?? 0;
+            final int winsB = b['w'] ?? 0;
+            if (winsA != winsB) {
+              return winsB.compareTo(winsA);
+            }
+            final int setsDiffA = (a['sWon'] ?? 0) - (a['sLost'] ?? 0);
+            final int setsDiffB = (b['sWon'] ?? 0) - (b['sLost'] ?? 0);
+            return setsDiffB.compareTo(setsDiffA);
+          });
+        }
+      }
+
+      FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).update({
+        'pools': _pools,
+      });
+    });
   }
 
   @override
@@ -506,6 +549,10 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                             },
                           ),
                           SizedBox(height: 20),
+                          ElevatedButton(
+                            onPressed: _addTeams,
+                            child: Text('Add Teams'),
+                          ),
                         ],
                       ),
                     ),
@@ -612,13 +659,13 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     final tabs = [
       'Pool Matches'
     ];
-    if (_knockoutRounds['Quarter-finals']!.isNotEmpty) {
+    if (_knockoutRounds['Quarter-finals'] != null && _knockoutRounds['Quarter-finals']!.isNotEmpty) {
       tabs.add('Quarter-finals');
     }
-    if (_knockoutRounds['Semi-finals']!.isNotEmpty) {
+    if (_knockoutRounds['Semi-finals'] != null && _knockoutRounds['Semi-finals']!.isNotEmpty) {
       tabs.add('Semi-finals');
     }
-    if (_knockoutRounds['Finals']!.isNotEmpty) {
+    if (_knockoutRounds['Finals'] != null && _knockoutRounds['Finals']!.isNotEmpty) {
       tabs.add('Finals');
     }
 
@@ -636,9 +683,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                   child: TabBarView(
                     children: [
                       _buildPoolMatchesTab(),
-                      if (_knockoutRounds['Quarter-finals']!.isNotEmpty) _buildKnockoutMatchesTab('Quarter-finals', _knockoutRounds['Quarter-finals']!),
-                      if (_knockoutRounds['Semi-finals']!.isNotEmpty) _buildKnockoutMatchesTab('Semi-finals', _knockoutRounds['Semi-finals']!),
-                      if (_knockoutRounds['Finals']!.isNotEmpty) _buildKnockoutMatchesTab('Finals', _knockoutRounds['Finals']!),
+                      if (_knockoutRounds['Quarter-finals'] != null && _knockoutRounds['Quarter-finals']!.isNotEmpty) _buildKnockoutMatchesTab('Quarter-finals', _knockoutRounds['Quarter-finals']!),
+                      if (_knockoutRounds['Semi-finals'] != null && _knockoutRounds['Semi-finals']!.isNotEmpty) _buildKnockoutMatchesTab('Semi-finals', _knockoutRounds['Semi-finals']!),
+                      if (_knockoutRounds['Finals'] != null && _knockoutRounds['Finals']!.isNotEmpty) _buildKnockoutMatchesTab('Finals', _knockoutRounds['Finals']!),
                     ],
                   ),
                 ),
@@ -647,56 +694,61 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
           );
   }
 
-  // Build Pool Matches Tab
   Widget _buildPoolMatchesTab() {
-    return ListView.builder(
-      itemCount: _pools.length,
-      itemBuilder: (context, index) {
-        final pool = _pools[index];
-        final matches = pool['matches'] ?? [];
-        return Card(
-          margin: const EdgeInsets.all(8.0),
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(pool['name'], style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                SizedBox(height: 10),
-                ...matches.map<Widget>((match) {
-                  final team1 = match['team1'];
-                  final team2 = match['team2'];
-                  final result = match['result'];
-                  return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('${team1['user1Name']} & ${team1['user2Name']}', style: TextStyle(fontSize: 16)),
-                          Text('${team2['user1Name']} & ${team2['user2Name']}', style: TextStyle(fontSize: 16)),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: Text(
-                              result != null ? '${result['setsTeam1']} - ${result['setsTeam2']}' : '0 - 0',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            itemCount: _pools.length,
+            itemBuilder: (context, index) {
+              final pool = _pools[index];
+              final matches = pool['matches'] ?? [];
+              return Card(
+                margin: const EdgeInsets.all(8.0),
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(pool['name'], style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      SizedBox(height: 10),
+                      ...matches.map<Widget>((match) {
+                        final result = match['result'];
+                        return ListTile(
+                          title: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('${match['team1']['user1Name']} & ${match['team1']['user2Name']}'),
+                              Text('${match['team2']['user1Name']} & ${match['team2']['user2Name']}'),
+                            ],
+                          ),
+                          trailing: ElevatedButton(
+                            onPressed: result == null ? () => _showScoreInputPopup(context, 'Pools', index, match) : null,
+                            child: Text(result == null ? 'Input Score' : 'Score Inputted'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: result == null ? Colors.blue : Colors.grey,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ],
-            ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
-        );
-      },
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: ElevatedButton(
+            onPressed: () => _showGenerateKnockoutsPopup(context),
+            child: Text('Generate Knockouts'),
+          ),
+        ),
+      ],
     );
   }
 
-// Build Knockout Matches Tab
   Widget _buildKnockoutMatchesTab(String round, List<Map<String, dynamic>> matches) {
     return ListView.builder(
       itemCount: matches.length,
@@ -704,7 +756,8 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
         final match = matches[index];
         final team1 = match['team1'];
         final team2 = match['team2'];
-        final result = match['result'];
+        final result = match['result'] as Map<String, int>?;
+
         return Card(
           margin: const EdgeInsets.all(8.0),
           child: Padding(
@@ -714,13 +767,19 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
               children: [
                 Text('$round', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 SizedBox(height: 10),
-                Text('${team1['user1Name']} & ${team1['user2Name']}', style: TextStyle(fontSize: 16)),
-                Text('${team2['user1Name']} & ${team2['user2Name']}', style: TextStyle(fontSize: 16)),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    result != null ? '${result['setsTeam1']} - ${result['setsTeam2']}' : '0 - 0',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ListTile(
+                  title: Text(team1 is Map<String, String> ? '${team1['user1Name']} & ${team1['user2Name']}' : team1.toString()),
+                  trailing: result != null ? Text('${result['setsTeam1']} - ${result['setsTeam2']}') : Text('0 - 0'),
+                ),
+                ListTile(
+                  title: Text(team2 is Map<String, String> ? '${team2['user1Name']} & ${team2['user2Name']}' : team2.toString()),
+                  trailing: result != null ? Text('${result['setsTeam1']} - ${result['setsTeam2']}') : Text('0 - 0'),
+                ),
+                ElevatedButton(
+                  onPressed: result == null ? () => _showScoreInputPopup(context, round, index, match) : null,
+                  child: Text(result == null ? 'Input Score' : 'Score Inputted'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: result == null ? Colors.blue : Colors.grey,
                   ),
                 ),
               ],
@@ -729,5 +788,171 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
         );
       },
     );
+  }
+
+  void _showScoreInputPopup(BuildContext context, String round, int matchIndex, Map<String, dynamic> match) {
+    final team1 = match['team1'];
+    final team2 = match['team2'];
+
+    final TextEditingController team1SetsController = TextEditingController();
+    final TextEditingController team2SetsController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Enter Match Score'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('${team1['user1Name']} & ${team1['user2Name']} vs ${team2['user1Name']} & ${team2['user2Name']}'),
+              TextField(
+                controller: team1SetsController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(labelText: 'Sets won by ${team1['user1Name']} & ${team1['user2Name']}'),
+              ),
+              TextField(
+                controller: team2SetsController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(labelText: 'Sets won by ${team2['user1Name']} & ${team2['user2Name']}'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final team1Sets = int.tryParse(team1SetsController.text) ?? 0;
+                final team2Sets = int.tryParse(team2SetsController.text) ?? 0;
+
+                if (team1Sets > 0 || team2Sets > 0) {
+                  _updateMatchResult(round, matchIndex, team1Sets, team2Sets);
+                  Navigator.of(context).pop();
+                } else {
+                  // Show an error message if the input is invalid
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Please enter valid scores.'),
+                    ),
+                  );
+                }
+              },
+              child: Text('Submit'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _updateMatchResult(String round, int matchIndex, int team1Sets, int team2Sets) {
+    setState(() {
+      final match = _knockoutRounds[round]?[matchIndex];
+      if (match != null) {
+        match['result'] = {
+          'setsTeam1': team1Sets,
+          'setsTeam2': team2Sets
+        };
+
+        // Check for null and handle it appropriately
+        final team1 = match['team1'] as Map<String, String>?;
+        final team2 = match['team2'] as Map<String, String>?;
+
+        if (round == 'Pools' && team1 != null && team2 != null) {
+          _updateStandings(team1, team2, team1Sets, team2Sets);
+        }
+
+        FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).update({
+          'quarterFinals': _knockoutRounds['Quarter-finals'],
+          'semiFinals': _knockoutRounds['Semi-finals'],
+          'finals': _knockoutRounds['Finals'],
+        }).then((_) {
+          _showConfirmationDialog();
+        });
+      }
+    });
+  }
+
+  void _showConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Score Submitted'),
+          content: Text('The match score has been successfully submitted.'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showGenerateKnockoutsPopup(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Generate Knockouts'),
+          content: Text('This will generate the knockout matches. Are you sure you want to proceed?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                // You can add your logic here for generating knockouts if needed
+              },
+              child: Text('Proceed'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _addTeams() {
+    final teams = [
+      {
+        'ukbtno1': '9819',
+        'ukbtno2': '2536'
+      },
+      {
+        'ukbtno1': '3440',
+        'ukbtno2': '4461'
+      },
+      {
+        'ukbtno1': '5697',
+        'ukbtno2': '9673'
+      },
+      {
+        'ukbtno1': '4483',
+        'ukbtno2': '7186'
+      },
+      {
+        'ukbtno1': '9721',
+        'ukbtno2': '7182'
+      },
+    ];
+
+    FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).update({
+      'teams': FieldValue.arrayUnion(teams)
+    }).then((_) {
+      _fetchTournamentDetails(); // Refresh the tournament details after adding teams
+    });
   }
 }
