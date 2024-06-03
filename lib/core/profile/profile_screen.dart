@@ -1,80 +1,77 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:ukbtapp/core/auth/auth_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ukbtapp/shared/bottom_nav.dart';
 
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
+class ProfileScreen extends StatefulWidget {
+  @override
+  _ProfileScreenState createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  String? userName;
+  String? userEmail;
+  bool isAdmin = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+  }
+
+  Future<void> _fetchUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      setState(() {
+        userName = doc.data()?['name'];
+        userEmail = doc.data()?['email'];
+        isAdmin = doc.data()?['admin'] ?? false;
+      });
+    }
+  }
+
+  void _signOut() async {
+    await FirebaseAuth.instance.signOut();
+    Navigator.pushReplacementNamed(context, '/login');
+  }
 
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context);
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      return Scaffold(
-        body: const Center(child: Text('No user found.')),
-        bottomNavigationBar: BottomNavBar(
-          currentIndex: 1,
-          onTap: (index) {
-            if (index == 0) {
-              Navigator.pushReplacementNamed(context, '/home');
-            } else if (index == 2) {
-              Navigator.pushReplacementNamed(context, '/tournaments');
-            }
-          },
-        ),
-      );
-    }
-
-    return FutureBuilder<bool>(
-      future: authService.isAdmin(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        final isAdmin = snapshot.data ?? false;
-
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Profile'),
-          ),
-          body: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Name: ${user.displayName ?? 'No name'}', style: const TextStyle(fontSize: 18)),
-                const SizedBox(height: 10),
-                Text('Email: ${user.email ?? 'No email'}', style: const TextStyle(fontSize: 18)),
-                const SizedBox(height: 10),
-                Text('Role: ${isAdmin ? 'Admin' : 'User'}', style: const TextStyle(fontSize: 18)),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () async {
-                    await authService.signOut();
-                    Navigator.pushReplacementNamed(context, '/login');
-                  },
-                  child: const Text('Sign Out'),
-                ),
-              ],
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Profile'),
+      ),
+      body: userName == null || userEmail == null
+          ? Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Name: $userName', style: TextStyle(fontSize: 20)),
+                  SizedBox(height: 8),
+                  Text('Email: $userEmail', style: TextStyle(fontSize: 20)),
+                  SizedBox(height: 8),
+                  Text('User Type: ${isAdmin ? 'Admin' : 'Regular User'}', style: TextStyle(fontSize: 20)),
+                  SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _signOut,
+                    child: Text('Sign Out'),
+                  ),
+                ],
+              ),
             ),
-          ),
-          bottomNavigationBar: BottomNavBar(
-            currentIndex: 1,
-            onTap: (index) {
-              if (index == 0) {
-                Navigator.pushReplacementNamed(context, '/');
-              } else if (index == 2) {
-                Navigator.pushReplacementNamed(context, '/tournaments');
-              }
-            },
-          ),
-        );
-      },
+      bottomNavigationBar: BottomNavBar(
+        currentIndex: 1, // Assuming profile is at index 1
+        onTap: (index) {
+          if (index == 0) {
+            Navigator.pushReplacementNamed(context, '/');
+          } else if (index == 2) {
+            Navigator.pushReplacementNamed(context, '/tournaments');
+          }
+        },
+      ),
     );
   }
 }

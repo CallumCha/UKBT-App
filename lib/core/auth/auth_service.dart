@@ -1,5 +1,5 @@
-import 'dart:math';
 
+import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14,7 +14,7 @@ class AuthService {
     try {
       await _auth.signInAnonymously();
     } on FirebaseAuthException catch (e) {
-      print('Anonymous login failed: $e');
+      print('Anonymous login failed: \$e');
     }
   }
 
@@ -38,7 +38,7 @@ class AuthService {
 
       return user;
     } catch (e) {
-      print('Google login failed: $e');
+      print('Google login failed: \$e');
       return null;
     }
   }
@@ -58,7 +58,7 @@ class AuthService {
         'email': user.email ?? '',
         'elo': 1200,
         'uid': user.uid,
-        'ukbtno': (await _generateUkbtno()).toString(),
+        'ukbtno': 'ukbtno\${await _generateUkbtno()}',
         'admin': false, // Default admin role set to false
       };
 
@@ -66,15 +66,16 @@ class AuthService {
     }
   }
 
-  Future<int> _generateUkbtno() async {
-    // Generate a unique 4-digit UKBT number
-    int ukbtno;
+  Future<String> _generateUkbtno() async {
+    // Generate a unique 5-digit UKBT number
+    String ukbtno;
     bool exists = true;
     final rand = Random();
 
     do {
-      ukbtno = (rand.nextInt(9000) + 1000);
-      final snapshot = await _db.collection('users').where('ukbtno', isEqualTo: ukbtno).get();
+      int number = rand.nextInt(90000) + 10000; // Generate a unique 5-digit number
+      ukbtno = number.toString();
+      final snapshot = await _db.collection('users').where('ukbtno', isEqualTo: 'ukbtno\$ukbtno').get();
       if (snapshot.docs.isEmpty) {
         exists = false;
       }
@@ -94,5 +95,19 @@ class AuthService {
       return userDoc.data()?['admin'] ?? false;
     }
     return false;
+  }
+
+  Future<void> registerUser(String name, String email, String password) async {
+    UserCredential result = await _auth.createUserWithEmailAndPassword(email: email, password: password);
+    User user = result.user!;
+    String ukbtno = await _generateUkbtno(); // Generate a unique 5-digit UKBT number
+
+    await _db.collection('users').doc(user.uid).set({
+      'name': name,
+      'email': email,
+      'elo': 1200,
+      'admin': false,
+      'ukbtno': 'ukbtno\$ukbtno',
+    });
   }
 }
