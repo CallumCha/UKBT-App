@@ -6,6 +6,7 @@ import 'package:ukbtapp/core/auth/models/team_model.dart';
 import 'package:ukbtapp/core/widgets/pools_tab.dart'; // Import the PoolsTab widget
 import 'package:ukbtapp/core/widgets/matches_tab.dart'; // Import the MatchesTab widget
 import 'package:ukbtapp/core/widgets/knockout_matches_tab.dart'; // Import the KnockoutMatchesTab widget
+import 'package:ukbtapp/core/widgets/final_standings_tab.dart'; // Import the FinalStandingsTab widget
 
 class RegistrationPage extends StatefulWidget {
   final Tournament tournament;
@@ -19,20 +20,14 @@ class RegistrationPage extends StatefulWidget {
 class _RegistrationPageState extends State<RegistrationPage> with SingleTickerProviderStateMixin {
   bool isAdmin = false;
   List<Team> registeredTeams = [];
-  late TabController _tabController;
+  TabController? _tabController;
 
   @override
   void initState() {
     super.initState();
     _fetchUserData();
     _fetchRegisteredTeams();
-    _tabController = TabController(length: 4, vsync: this); // Set the length to 4 for the four tabs
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+    _tabController = TabController(length: 5, vsync: this); // Set the length to 5 for the five tabs
   }
 
   Future<void> _fetchUserData() async {
@@ -136,17 +131,19 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
             Tab(text: 'Registration'),
             Tab(text: 'Pools'),
             Tab(text: 'Matches'),
-            Tab(text: 'Knockout Matches'),
+            Tab(text: 'Knockout Matches'), // Add the Knockout Matches tab here
+            Tab(text: 'Final Standings'), // Add the Final Standings tab here
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildRegistrationTab(), // Registration Tab
-          PoolsTab(tournamentId: widget.tournament.id), // Pools Tab
-          MatchesTab(tournamentId: widget.tournament.id), // Matches Tab
-          KnockoutMatchesTab(tournamentId: widget.tournament.id), // Knockout Matches Tab
+          _buildRegistrationTab(),
+          PoolsTab(tournamentId: widget.tournament.id),
+          MatchesTab(tournamentId: widget.tournament.id),
+          KnockoutMatchesTab(tournamentId: widget.tournament.id), // Use the KnockoutMatchesTab widget
+          FinalStandingsTab(tournamentId: widget.tournament.id), // Use the FinalStandingsTab widget
         ],
       ),
     );
@@ -218,13 +215,13 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
                                 if (snapshot.connectionState == ConnectionState.waiting) {
                                   return const Text('Loading...');
                                 } else if (!snapshot.hasData || snapshot.data?.data() == null) {
-                                  return const Text('No data');
+                                  return const Text('No data b');
                                 } else {
                                   return Text((snapshot.data!.data() as Map<String, dynamic>)['name']);
                                 }
                               },
                             )
-                          : const Text('No data'),
+                          : const Text('No data c'),
                     ),
                   ],
                 );
