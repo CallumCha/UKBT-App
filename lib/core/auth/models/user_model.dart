@@ -1,4 +1,3 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserModel {
@@ -19,9 +18,8 @@ class UserModel {
   }) : ukbtno = _validateUkbtno(ukbtno);
 
   static String _validateUkbtno(String ukbtno) {
-    final regex = RegExp(r'^ukbtno\d{5}\$');
-    if (!regex.hasMatch(ukbtno)) {
-      throw ArgumentError('ukbtno must start with "ukbtno" followed by a five-digit number');
+    if (ukbtno.length != 4 || !RegExp(r'^[0-9]{4}$').hasMatch(ukbtno)) {
+      throw ArgumentError('ukbtno must be a 4-digit string');
     }
     return ukbtno;
   }
@@ -34,7 +32,7 @@ class UserModel {
       email: data['email'] ?? '',
       elo: data['elo'] ?? 0,
       admin: data['admin'] ?? false,
-      ukbtno: data['ukbtno'] ?? 'ukbtno00000',
+      ukbtno: data['ukbtno'] ?? '0000',
     );
   }
 

@@ -12,9 +12,9 @@ class Routes {
       case '/login':
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       case '/profile':
-        return MaterialPageRoute(builder: (_) => ProfileScreen());
+        return MaterialPageRoute(builder: (_) => const ProfileScreen());
       case '/tournaments':
-        return MaterialPageRoute(builder: (_) => TournamentScreen());
+        return MaterialPageRoute(builder: (_) => const TournamentScreen());
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(

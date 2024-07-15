@@ -6,7 +6,7 @@ import 'package:ukbtapp/core/auth/models/tournament_model.dart' as tournament_mo
 class DetailsPage extends StatefulWidget {
   final String tournamentId;
 
-  DetailsPage({required this.tournamentId});
+  const DetailsPage({super.key, required this.tournamentId});
 
   @override
   _DetailsPageState createState() => _DetailsPageState();
@@ -46,27 +46,27 @@ class _DetailsPageState extends State<DetailsPage> {
         title: Text(_tournament?.name ?? 'Tournament Details'),
       ),
       body: _tournament == null
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
                 ListTile(
-                  title: Text('Tournament ID'),
+                  title: const Text('Tournament ID'),
                   subtitle: Text(_tournament?.id ?? ''),
                 ),
                 ListTile(
-                  title: Text('Name'),
+                  title: const Text('Name'),
                   subtitle: Text(_tournament?.name ?? ''),
                 ),
                 ListTile(
-                  title: Text('Gender'),
+                  title: const Text('Gender'),
                   subtitle: Text(_tournament?.gender ?? ''),
                 ),
                 ListTile(
-                  title: Text('Level'),
+                  title: const Text('Level'),
                   subtitle: Text(_tournament?.level ?? ''),
                 ),
                 ListTile(
-                  title: Text('Location'),
+                  title: const Text('Location'),
                   subtitle: Text(_tournament?.location ?? ''),
                 ),
                 Expanded(
@@ -75,8 +75,7 @@ class _DetailsPageState extends State<DetailsPage> {
                     itemBuilder: (context, index) {
                       final team = _teams[index];
                       return ListTile(
-                        title: Text(team.name),
-                        subtitle: Text('ELO: ${team.elo}'),
+                        title: Text(team.id),
                       );
                     },
                   ),

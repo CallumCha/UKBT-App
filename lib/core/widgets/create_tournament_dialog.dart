@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CreateTournamentDialog extends StatefulWidget {
-  const CreateTournamentDialog({Key? key}) : super(key: key);
+  const CreateTournamentDialog({super.key});
 
   @override
   _CreateTournamentDialogState createState() => _CreateTournamentDialogState();

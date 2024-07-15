@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ukbtapp/shared/bottom_nav.dart';
 
 class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({super.key});
+
   @override
   _ProfileScreenState createState() => _ProfileScreenState();
 }
@@ -40,24 +42,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Profile'),
+        title: const Text('Profile'),
       ),
       body: userName == null || userEmail == null
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Name: $userName', style: TextStyle(fontSize: 20)),
-                  SizedBox(height: 8),
-                  Text('Email: $userEmail', style: TextStyle(fontSize: 20)),
-                  SizedBox(height: 8),
-                  Text('User Type: ${isAdmin ? 'Admin' : 'Regular User'}', style: TextStyle(fontSize: 20)),
-                  SizedBox(height: 16),
+                  Text('Name: $userName', style: const TextStyle(fontSize: 20)),
+                  const SizedBox(height: 8),
+                  Text('Email: $userEmail', style: const TextStyle(fontSize: 20)),
+                  const SizedBox(height: 8),
+                  Text('User Type: ${isAdmin ? 'Admin' : 'Regular User'}', style: const TextStyle(fontSize: 20)),
+                  const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: _signOut,
-                    child: Text('Sign Out'),
+                    child: const Text('Sign Out'),
                   ),
                 ],
               ),

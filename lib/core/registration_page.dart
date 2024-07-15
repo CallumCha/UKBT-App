@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
-import 'package:ukbtapp/core/auth/models/user_model.dart';
 import 'package:ukbtapp/core/auth/models/tournament_model.dart';
 import 'package:ukbtapp/core/auth/models/team_model.dart';
+import 'package:ukbtapp/core/widgets/pools_tab.dart'; // Import the PoolsTab widget
+import 'package:ukbtapp/core/widgets/matches_tab.dart'; // Import the MatchesTab widget
+import 'package:ukbtapp/core/widgets/knockout_matches_tab.dart'; // Import the KnockoutMatchesTab widget
 
 class RegistrationPage extends StatefulWidget {
   final Tournament tournament;
 
-  RegistrationPage({required this.tournament});
+  const RegistrationPage({super.key, required this.tournament});
 
   @override
   _RegistrationPageState createState() => _RegistrationPageState();
@@ -17,14 +19,20 @@ class RegistrationPage extends StatefulWidget {
 class _RegistrationPageState extends State<RegistrationPage> with SingleTickerProviderStateMixin {
   bool isAdmin = false;
   List<Team> registeredTeams = [];
-  TabController? _tabController;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     _fetchUserData();
     _fetchRegisteredTeams();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this); // Set the length to 4 for the four tabs
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchUserData() async {
@@ -38,7 +46,7 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
   }
 
   Future<void> _fetchRegisteredTeams() async {
-    final snapshot = await FirebaseFirestore.instance.collection('teams').where('tournamentId', isEqualTo: widget.tournament.id).get();
+    final snapshot = await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournament.id).collection('teams').get();
     List<Team> teams = [];
     for (var teamDoc in snapshot.docs) {
       teams.add(Team.fromDocument(teamDoc));
@@ -58,15 +66,13 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
 
   void _closeRegistration() async {
     await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournament.id).update({
-      'registrationOpen': false
+      'registrationOpen': false,
     });
     setState(() {
       widget.tournament.registrationOpen = false;
     });
-    _createPoolsAndKnockouts();
-  }
 
-  Future<void> _createPoolsAndKnockouts() async {
+    // Assign teams to pools
     int poolSize = 4; // Adjust pool size as necessary
     int numPools = (registeredTeams.length / poolSize).ceil();
     List<List<Team>> pools = List.generate(numPools, (_) => []);
@@ -76,28 +82,26 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
       pools[i % numPools].add(registeredTeams[i]);
     }
 
-    // Create pools in Firestore
+    // Create pools and matches in Firestore
     for (int i = 0; i < pools.length; i++) {
-      await FirebaseFirestore.instance.collection('pools').add({
-        'tournamentId': widget.tournament.id,
-        'name': 'Pool ${String.fromCharCode(65 + i)}', // Pool A, Pool B, etc.
-        'teams': pools[i].map((team) => team.id).toList(),
-      });
-    }
+      String poolName = 'Pool ${String.fromCharCode(65 + i)}'; // Pool A, Pool B, etc.
+      DocumentReference poolDoc = FirebaseFirestore.instance.collection('tournaments').doc(widget.tournament.id).collection('pools').doc(poolName);
 
-    // Create knockout matches with placeholders
-    for (int i = 0; i < numPools; i++) {
-      for (int j = i + 1; j < numPools; j++) {
-        await FirebaseFirestore.instance.collection('matches').add({
-          'tournamentId': widget.tournament.id,
-          'stage': 'knockout',
-          'round': 1,
-          'team1': 'Winner Pool ${String.fromCharCode(65 + i)}',
-          'team2': 'Second Pool ${String.fromCharCode(65 + j)}',
-          'score1': 0,
-          'score2': 0,
-          'completed': false,
-        });
+      await poolDoc.set({
+        'teams': pools[i].map((team) => team.id).toList(),
+        'wins': pools[i].map((team) => 0).toList(), // Initialize wins to 0
+      });
+
+      // Create matches for each pool
+      for (int j = 0; j < pools[i].length; j++) {
+        for (int k = j + 1; k < pools[i].length; k++) {
+          await poolDoc.collection('pool_matches').add({
+            'team1': pools[i][j].id,
+            'team2': pools[i][k].id,
+            'winner': '',
+            'type': poolName,
+          });
+        }
       }
     }
   }
@@ -106,15 +110,18 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
     final user1Uid = await _getUserUidByUkbtNo(user1UkbtNo);
     final user2Uid = await _getUserUidByUkbtNo(user2UkbtNo);
     if (user1Uid != null && user2Uid != null) {
-      await FirebaseFirestore.instance.collection('teams').add({
-        'tournamentId': widget.tournament.id,
-        'user1': user1Uid,
-        'user2': user2Uid,
-        'name': 'Team ${user1UkbtNo.substring(0, 4)} & ${user2UkbtNo.substring(0, 4)}',
+      await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournament.id).collection('teams').add({
+        'player1': user1Uid,
+        'player2': user2Uid,
+        'ukbtno1': user1UkbtNo,
+        'ukbtno2': user2UkbtNo,
       });
       _fetchRegisteredTeams();
     } else {
       // Handle case where user UIDs are not found
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('User(s) not found')),
+      );
     }
   }
 
@@ -125,19 +132,21 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
         title: Text('Register for ${widget.tournament.name}'),
         bottom: TabBar(
           controller: _tabController,
-          tabs: [
+          tabs: const [
             Tab(text: 'Registration'),
             Tab(text: 'Pools'),
-            Tab(text: 'Playoffs'),
+            Tab(text: 'Matches'),
+            Tab(text: 'Knockout Matches'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildRegistrationTab(),
-          _buildPoolsTab(),
-          _buildPlayoffsTab(),
+          _buildRegistrationTab(), // Registration Tab
+          PoolsTab(tournamentId: widget.tournament.id), // Pools Tab
+          MatchesTab(tournamentId: widget.tournament.id), // Matches Tab
+          KnockoutMatchesTab(tournamentId: widget.tournament.id), // Knockout Matches Tab
         ],
       ),
     );
@@ -154,22 +163,22 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
             children: [
               TextField(
                 controller: user1Controller,
-                decoration: InputDecoration(labelText: 'Enter UKBT No for Player 1'),
+                decoration: const InputDecoration(labelText: 'Enter UKBT No for Player 1'),
               ),
               TextField(
                 controller: user2Controller,
-                decoration: InputDecoration(labelText: 'Enter UKBT No for Player 2'),
+                decoration: const InputDecoration(labelText: 'Enter UKBT No for Player 2'),
               ),
               ElevatedButton(
                 onPressed: () {
                   _registerTeam(user1Controller.text, user2Controller.text);
                 },
-                child: Text('Register'),
+                child: const Text('Register'),
               ),
             ],
           )
         else
-          Text('Registration is closed'),
+          const Text('Registration is closed'),
         Expanded(
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -185,30 +194,38 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
                 return DataRow(
                   cells: [
                     DataCell(Text('$index')),
-                    DataCell(FutureBuilder<DocumentSnapshot>(
-                      future: FirebaseFirestore.instance.collection('users').doc(team.user1).get(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return Text('Loading...');
-                        } else if (!snapshot.hasData || snapshot.data?.data() == null) {
-                          return Text('No data');
-                        } else {
-                          return Text((snapshot.data!.data() as Map<String, dynamic>)['name']);
-                        }
-                      },
-                    )),
-                    DataCell(FutureBuilder<DocumentSnapshot>(
-                      future: FirebaseFirestore.instance.collection('users').doc(team.user2).get(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return Text('Loading...');
-                        } else if (!snapshot.hasData || snapshot.data?.data() == null) {
-                          return Text('No data');
-                        } else {
-                          return Text((snapshot.data!.data() as Map<String, dynamic>)['name']);
-                        }
-                      },
-                    )),
+                    DataCell(
+                      team.user1.isNotEmpty
+                          ? FutureBuilder<DocumentSnapshot>(
+                              future: FirebaseFirestore.instance.collection('users').doc(team.user1).get(),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState == ConnectionState.waiting) {
+                                  return const Text('Loading...');
+                                } else if (!snapshot.hasData || snapshot.data?.data() == null) {
+                                  return const Text('No data');
+                                } else {
+                                  return Text((snapshot.data!.data() as Map<String, dynamic>)['name']);
+                                }
+                              },
+                            )
+                          : const Text('No data'),
+                    ),
+                    DataCell(
+                      team.user2.isNotEmpty
+                          ? FutureBuilder<DocumentSnapshot>(
+                              future: FirebaseFirestore.instance.collection('users').doc(team.user2).get(),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState == ConnectionState.waiting) {
+                                  return const Text('Loading...');
+                                } else if (!snapshot.hasData || snapshot.data?.data() == null) {
+                                  return const Text('No data');
+                                } else {
+                                  return Text((snapshot.data!.data() as Map<String, dynamic>)['name']);
+                                }
+                              },
+                            )
+                          : const Text('No data'),
+                    ),
                   ],
                 );
               }).toList(),
@@ -218,111 +235,9 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
         if (isAdmin && widget.tournament.registrationOpen)
           ElevatedButton(
             onPressed: _closeRegistration,
-            child: Text('Close Registration'),
+            child: const Text('Close Registration'),
           ),
       ],
-    );
-  }
-
-  Widget _buildPoolsTab() {
-    return FutureBuilder<QuerySnapshot>(
-      future: FirebaseFirestore.instance.collection('pools').where('tournamentId', isEqualTo: widget.tournament.id).get(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Center(child: Text('No pools available'));
-        }
-        final pools = snapshot.data!.docs;
-        return ListView.builder(
-          itemCount: pools.length,
-          itemBuilder: (context, index) {
-            final pool = pools[index];
-            final poolName = pool['name'];
-            final teamIds = List<String>.from(pool['teams']);
-            return ExpansionTile(
-              title: Text(poolName),
-              children: teamIds.map((teamId) {
-                return FutureBuilder<DocumentSnapshot>(
-                  future: FirebaseFirestore.instance.collection('teams').doc(teamId).get(),
-                  builder: (context, teamSnapshot) {
-                    if (teamSnapshot.connectionState == ConnectionState.waiting) {
-                      return ListTile(title: Text('Loading...'));
-                    }
-                    final teamData = teamSnapshot.data?.data() as Map<String, dynamic>;
-                    return ListTile(
-                      title: Text(teamData['name']),
-                    );
-                  },
-                );
-              }).toList(),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildPlayoffsTab() {
-    return FutureBuilder<QuerySnapshot>(
-      future: FirebaseFirestore.instance.collection('matches').where('tournamentId', isEqualTo: widget.tournament.id).where('stage', isEqualTo: 'knockout').get(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Center(child: Text('No matches available'));
-        }
-        final matches = snapshot.data!.docs;
-        Map<int, List<DocumentSnapshot>> rounds = {};
-        for (var match in matches) {
-          int round = match['round'];
-          if (rounds.containsKey(round)) {
-            rounds[round]!.add(match);
-          } else {
-            rounds[round] = [
-              match
-            ];
-          }
-        }
-        return Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: rounds.keys.map((round) {
-                return ChoiceChip(
-                  label: Text(round == 1
-                      ? 'QF'
-                      : round == 2
-                          ? 'SF'
-                          : 'Final'),
-                  selected: _tabController?.index == round,
-                  onSelected: (bool selected) {
-                    if (selected) {
-                      setState(() {
-                        _tabController?.index = round;
-                      });
-                    }
-                  },
-                );
-              }).toList(),
-            ),
-            Expanded(
-              child: ListView.builder(
-                itemCount: rounds[_tabController?.index]?.length ?? 0,
-                itemBuilder: (context, index) {
-                  final match = rounds[_tabController?.index]?[index];
-                  return ListTile(
-                    title: Text('${match?['team1']} vs ${match?['team2']}'),
-                    subtitle: Text('Score: ${match?['score1']} - ${match?['score2']}'),
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 }

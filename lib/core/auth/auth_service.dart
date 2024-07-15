@@ -13,7 +13,7 @@ class AuthService {
   Future<void> anonLogin() async {
     try {
       await _auth.signInAnonymously();
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException {
       print('Anonymous login failed: \$e');
     }
   }

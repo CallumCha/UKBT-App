@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
-import 'package:ukbtapp/core/auth/models/user_model.dart';
 import 'package:ukbtapp/core/auth/models/tournament_model.dart';
 import 'package:ukbtapp/core/registration_page.dart';
 import 'package:ukbtapp/shared/bottom_nav.dart';
-import 'package:ukbtapp/core/registration_page.dart';
 
 class TournamentScreen extends StatefulWidget {
+  const TournamentScreen({super.key});
+
   @override
   _TournamentScreenState createState() => _TournamentScreenState();
 }
@@ -41,7 +41,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
   }
 
   void _showCreateTournamentDialog() {
-    final _formKey = GlobalKey<FormState>();
+    final formKey = GlobalKey<FormState>();
     final TextEditingController nameController = TextEditingController();
     final TextEditingController genderController = TextEditingController();
     final TextEditingController levelController = TextEditingController();
@@ -51,15 +51,15 @@ class _TournamentScreenState extends State<TournamentScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Create Tournament'),
+          title: const Text('Create Tournament'),
           content: Form(
-            key: _formKey,
+            key: formKey,
             child: SingleChildScrollView(
               child: Column(
                 children: [
                   TextFormField(
                     controller: nameController,
-                    decoration: InputDecoration(labelText: 'Name'),
+                    decoration: const InputDecoration(labelText: 'Name'),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter a name';
@@ -69,7 +69,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
                   ),
                   TextFormField(
                     controller: genderController,
-                    decoration: InputDecoration(labelText: 'Gender'),
+                    decoration: const InputDecoration(labelText: 'Gender'),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter a gender';
@@ -79,7 +79,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
                   ),
                   TextFormField(
                     controller: levelController,
-                    decoration: InputDecoration(labelText: 'Level'),
+                    decoration: const InputDecoration(labelText: 'Level'),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter a level';
@@ -89,7 +89,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
                   ),
                   TextFormField(
                     controller: locationController,
-                    decoration: InputDecoration(labelText: 'Location'),
+                    decoration: const InputDecoration(labelText: 'Location'),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter a location';
@@ -106,11 +106,11 @@ class _TournamentScreenState extends State<TournamentScreen> {
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: Text('Cancel'),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
-                if (_formKey.currentState!.validate()) {
+                if (formKey.currentState!.validate()) {
                   _createTournament(
                     nameController.text,
                     genderController.text,
@@ -120,7 +120,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
                   Navigator.of(context).pop();
                 }
               },
-              child: Text('Create'),
+              child: const Text('Create'),
             ),
           ],
         );
@@ -144,14 +144,14 @@ class _TournamentScreenState extends State<TournamentScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Tournaments'),
+        title: const Text('Tournaments'),
       ),
       body: Column(
         children: [
           if (isAdmin)
             ElevatedButton(
               onPressed: _showCreateTournamentDialog,
-              child: Text('Create Tournament'),
+              child: const Text('Create Tournament'),
             ),
           Expanded(
             child: ListView.builder(
