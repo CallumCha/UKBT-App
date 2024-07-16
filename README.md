@@ -1,20 +1,8 @@
 # ukbtapp
-<<<<<<< HEAD
 UKBT app for tournaments
 =======
+### A beach volleyball app to register players for tournaments.
 
-A new Flutter project.
+This app will allow users to sign up with a partner for a beach volleyball tournament, and adjust an athlete's ELO based on where they came in the tournament and the level of the tournament.
 
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
->>>>>>> 638b4b0 (Initial commit with group stage sorted no knockouts or score)
+I wanted to create this App because the current tournament registration and the tournament management itself is a slow process this app will automatically seed players and then create knockout matches based on the results of the pools.
