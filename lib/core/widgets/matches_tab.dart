@@ -197,7 +197,7 @@ class _MatchesTabState extends State<MatchesTab> {
                                       ],
                                     ),
                                   ),
-                                  onTap: winner == ""
+                                  onTap: winner == ''
                                       ? () {
                                           _selectWinnerDialog(poolName, matchId, team1Id, team2Id, team1Name, team2Name);
                                         }
