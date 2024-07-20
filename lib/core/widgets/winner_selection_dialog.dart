@@ -69,15 +69,7 @@ class _WinnerSelectionDialogState extends State<WinnerSelectionDialog> {
           onPressed: () async {
             if (selectedWinner != null) {
               try {
-                DocumentReference matchDocRef;
-
-                if (widget.poolName == 'knockout') {
-                  // Handle knockout matches
-                  matchDocRef = FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).collection('knockout_matches').doc(widget.matchId);
-                } else {
-                  // Handle pool matches
-                  matchDocRef = FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).collection('pools').doc(widget.poolName).collection('pool_matches').doc(widget.matchId);
-                }
+                DocumentReference matchDocRef = getMatchDocRef(widget.tournamentId, widget.poolName, widget.matchId);
 
                 // Check if the document exists
                 DocumentSnapshot matchDoc = await matchDocRef.get();
@@ -93,42 +85,9 @@ class _WinnerSelectionDialogState extends State<WinnerSelectionDialog> {
                 });
 
                 if (widget.poolName != 'knockout') {
-                  // Increment the win count for the selected winner team in pool matches
-                  DocumentReference poolDocRef = FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).collection('pools').doc(widget.poolName);
-
-                  DocumentSnapshot poolDoc = await poolDocRef.get();
-                  if (poolDoc.exists) {
-                    Map<String, dynamic> poolData = poolDoc.data() as Map<String, dynamic>;
-                    List<String> teams = List<String>.from(poolData['teams']);
-                    List<int> wins = List<int>.from(poolData['wins']);
-                    int teamIndex = teams.indexOf(selectedWinner!);
-                    if (teamIndex != -1) {
-                      wins[teamIndex]++;
-                      await poolDocRef.update({
-                        'wins': wins
-                      });
-                    }
-                  }
-
-                  // Check if all pool matches are completed
-                  QuerySnapshot poolMatches = await poolDocRef.collection('pool_matches').get();
-
-                  bool allMatchesCompleted = poolMatches.docs.every((doc) => doc['winner'] != '');
-
-                  if (allMatchesCompleted) {
-                    // Create knockout matches if all pool matches are completed
-                    await createKnockoutMatches(widget.tournamentId);
-                  }
+                  await updatePoolMatches(widget.tournamentId, selectedWinner!);
                 } else {
-                  // Check if all knockout matches in this round are completed
-                  QuerySnapshot knockoutMatches = await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).collection('knockout_matches').get();
-
-                  bool allKnockoutMatchesCompleted = knockoutMatches.docs.every((doc) => doc['winner'] != '');
-
-                  if (allKnockoutMatchesCompleted) {
-                    // Create the next set of knockout matches or finalize standings if final match is completed
-                    await createNextKnockoutMatchesOrFinalize(widget.tournamentId);
-                  }
+                  await updateKnockoutMatch(widget.tournamentId);
                 }
 
                 Navigator.of(context).pop(selectedWinner);
@@ -143,6 +102,64 @@ class _WinnerSelectionDialogState extends State<WinnerSelectionDialog> {
         ),
       ],
     );
+  }
+
+  DocumentReference getMatchDocRef(String tournamentId, String poolName, String matchId) {
+    if (poolName == 'knockout') {
+      return FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).collection('knockout_matches').doc(matchId);
+    } else {
+      return FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).collection('pools').doc(poolName).collection('pool_matches').doc(matchId);
+    }
+  }
+
+  Future<void> updatePoolMatches(String tournamentId, String selectedWinner) async {
+    final tournamentDoc = FirebaseFirestore.instance.collection('tournaments').doc(tournamentId);
+    final pools = [
+      'Pool A',
+      'Pool B'
+    ]; // List of pool names
+    bool allMatchesCompleted = true;
+
+    for (String poolName in pools) {
+      DocumentReference poolDocRef = tournamentDoc.collection('pools').doc(poolName);
+      DocumentSnapshot poolSnapshot = await poolDocRef.get();
+
+      if (poolSnapshot.exists) {
+        Map<String, dynamic> poolData = poolSnapshot.data() as Map<String, dynamic>;
+        List<String> teams = List<String>.from(poolData['teams']);
+        List<int> wins = List<int>.from(poolData['wins']);
+        int teamIndex = teams.indexOf(selectedWinner);
+        if (teamIndex != -1) {
+          wins[teamIndex]++;
+          await poolDocRef.update({
+            'wins': wins
+          });
+        }
+      }
+
+      QuerySnapshot poolMatchesSnapshot = await poolDocRef.collection('pool_matches').get();
+      bool poolMatchesCompleted = poolMatchesSnapshot.docs.every((doc) => doc['winner'] != '');
+
+      if (!poolMatchesCompleted) {
+        allMatchesCompleted = false;
+      }
+    }
+
+    if (allMatchesCompleted) {
+      await createKnockoutMatches(tournamentId);
+    }
+  }
+
+  Future<void> updateKnockoutMatch(String tournamentId) async {
+    // Check if all knockout matches in this round are completed
+    QuerySnapshot knockoutMatches = await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).collection('knockout_matches').get();
+
+    bool allKnockoutMatchesCompleted = knockoutMatches.docs.every((doc) => doc['winner'] != '');
+
+    if (allKnockoutMatchesCompleted) {
+      // Create the next set of knockout matches or finalize standings if final match is completed
+      await createNextKnockoutMatchesOrFinalize(tournamentId);
+    }
   }
 }
 

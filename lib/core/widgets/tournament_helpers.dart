@@ -18,6 +18,8 @@ Future<void> createKnockoutMatches(String tournamentId) async {
   // Sort teams based on wins
   standings.sort((a, b) => b['wins'].compareTo(a['wins']));
 
+  print(standings.length);
+
   // Select top teams for knockout stage
   List<String> topTeams;
   if (standings.length <= 4) {
