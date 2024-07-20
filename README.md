@@ -12,6 +12,7 @@ I wanted to create this App because the current tournament registration and the 
 - ELO is updated every match you play but will only see these Elo changes at the end of a tournament? Should I display they elo changes for each match ? only if they are in the match?
 - On that user's profile page you can see the last 90? 150? 365? days of their elo change. Tournament jump or match jumps?
 - Should you see the ELO of everyone who is playing in the tournament?
+https://towardsdatascience.com/developing-an-elo-based-data-driven-ranking-system-for-2v2-multiplayer-games-7689f7d42a53
 
 #### Tournament matches
 - Have a 'your matches' chip?
