@@ -155,7 +155,10 @@ class _WinnerSelectionDialogState extends State<WinnerSelectionDialog> {
 
     bool allKnockoutMatchesCompleted = knockoutMatches.docs.every((doc) => doc['winner'] != '');
 
-    if (allKnockoutMatchesCompleted) {
+    // Check if the final match exists and is completed
+    bool finalMatchCompleted = knockoutMatches.docs.where((doc) => doc['round'] == 'Final').any((doc) => doc['winner'] != '');
+
+    if (allKnockoutMatchesCompleted && finalMatchCompleted) {
       await createNextKnockoutMatchesOrFinalize(tournamentId);
 
       // Force an update to the tournament document to trigger the stream
@@ -163,10 +166,32 @@ class _WinnerSelectionDialogState extends State<WinnerSelectionDialog> {
         'lastUpdated': FieldValue.serverTimestamp(),
       });
 
-      print("All knockout matches completed, tournament updated"); // Debug print
+      print("All knockout matches completed, including final. Tournament updated");
       Navigator.of(context).pop(selectedWinner);
+    } else if (allKnockoutMatchesCompleted && !finalMatchCompleted) {
+      // If all matches except the final are completed, create the final match
+      await createFinalMatch(tournamentId);
+      print("All knockout matches completed except final. Final match created.");
     } else {
-      print("Not all knockout matches are completed yet"); // Debug print
+      print("Not all knockout matches are completed yet");
+    }
+  }
+
+  Future<void> createFinalMatch(String tournamentId) async {
+    QuerySnapshot semifinalMatches = await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).collection('knockout_matches').where('round', isEqualTo: 'Semi Finals').get();
+
+    List<String> finalists = semifinalMatches.docs.map((doc) => doc['winner'] as String).toList();
+
+    if (finalists.length == 2) {
+      await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).collection('knockout_matches').add({
+        'round': 'Final',
+        'team1': finalists[0],
+        'team2': finalists[1],
+        'winner': '',
+      });
+      print("Final match created between ${finalists[0]} and ${finalists[1]}");
+    } else {
+      print("Error: Couldn't determine finalists. Found ${finalists.length} winners in semifinals.");
     }
   }
 }
@@ -236,117 +261,129 @@ Future<void> createKnockoutMatches(String tournamentId) async {
 Future<void> createNextKnockoutMatchesOrFinalize(String tournamentId) async {
   final knockoutMatchesSnapshot = await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).collection('knockout_matches').get();
 
-  List<String> winners = [];
-  List<String> losers = [];
-  Map<String, String> roundInfo = {};
+  List<QueryDocumentSnapshot> allMatches = knockoutMatchesSnapshot.docs;
 
-  for (var match in knockoutMatchesSnapshot.docs) {
-    winners.add(match['winner']);
-    String loser = (match['team1'] == match['winner']) ? match['team2'] : match['team1'];
-    losers.add(loser);
-    roundInfo[match['winner']] = match['round'];
-    roundInfo[loser] = match['round'];
-  }
+  // Check if the final match exists and is completed
 
-  // Determine the next round name and the number of matches
+  // Create final standings
+  List<Map<String, dynamic>> finalStandings = await createFinalStandings(tournamentId, allMatches);
+
+  // Update the tournament document with final standings
+  await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).update({
+    'final_standings': finalStandings,
+    'status': 'completed'
+  });
+
+  print("Final standings created and tournament marked as completed");
+}
+
+Future<void> createNextRoundOfMatches(String tournamentId, List<QueryDocumentSnapshot> allMatches) async {
+  List<String> winners = allMatches.where((match) => match['winner'] != '').map((match) => match['winner'] as String).toList();
+
   String nextRoundName;
-  double numMatches = winners.length / 2;
-
-  if (numMatches == 4) {
-    nextRoundName = 'Quarter Finals';
-  } else if (numMatches == 2) {
+  if (winners.length == 4) {
     nextRoundName = 'Semi Finals';
-  } else if (numMatches == 1) {
+  } else if (winners.length == 2) {
     nextRoundName = 'Final';
   } else {
-    // Create final standings if all rounds are completed
-    List<Map<String, dynamic>> finalStandings = [];
-
-    // Winner of the final
-    finalStandings.add({
-      'team': winners[0],
-      'position': 1
-    });
-
-    // Runner-up (loser of the final)
-    String runnerUp = losers.firstWhere((loser) => roundInfo[loser] == 'Final');
-    finalStandings.add({
-      'team': runnerUp,
-      'position': 2
-    });
-
-    // Semi-finalists (3rd place)
-    List<String> semiFinalLosers = losers.where((loser) => roundInfo[loser] == 'Semi Finals').toList();
-    for (var semifinalist in semiFinalLosers) {
-      finalStandings.add({
-        'team': semifinalist,
-        'position': 3
-      });
-    }
-
-    // Quarter-finalists (5th place)
-    List<String> quarterFinalLosers = losers.where((loser) => roundInfo[loser] == 'Quarter Finals').toList();
-    for (var quarterfinalist in quarterFinalLosers) {
-      finalStandings.add({
-        'team': quarterfinalist,
-        'position': 5
-      });
-    }
-
-    // Get pool standings for teams that didn't make the knockout stage
-    final poolsSnapshot = await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).collection('pools').get();
-
-    List<Map<String, dynamic>> nonKnockoutTeams = [];
-
-    for (var pool in poolsSnapshot.docs) {
-      List<String> teams = List<String>.from(pool['teams']);
-      List<int> wins = List<int>.from(pool['wins']);
-      for (int i = 0; i < teams.length; i++) {
-        if (!winners.contains(teams[i]) && !losers.contains(teams[i])) {
-          nonKnockoutTeams.add({
-            'team': teams[i],
-            'wins': wins[i]
-          });
-        }
-      }
-    }
-
-    // Sort non-knockout teams based on wins
-    nonKnockoutTeams.sort((a, b) => b['wins'].compareTo(a['wins']));
-
-    // Assign positions to non-knockout teams
-    int startPosition = 5 + quarterFinalLosers.length;
-    for (int i = 0; i < nonKnockoutTeams.length; i++) {
-      finalStandings.add({
-        'team': nonKnockoutTeams[i]['team'],
-        'position': startPosition
-      });
-      if ((i + 1) % 2 == 0) {
-        startPosition += 2;
-      }
-    }
-
-    await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).update({
-      'final_standings': finalStandings,
-    });
-    return; // No more rounds to create
+    print("Unexpected number of winners: ${winners.length}");
+    return;
   }
 
-  // Create the next round of knockout matches
   List<List<String>> nextRoundMatches = [];
-  while (winners.length >= 2) {
+  for (int i = 0; i < winners.length; i += 2) {
     nextRoundMatches.add([
-      winners.removeAt(0),
-      winners.removeAt(winners.length - 1)
+      winners[i],
+      winners[i + 1]
     ]);
   }
 
-  for (var i = 0; i < nextRoundMatches.length; i++) {
+  for (var match in nextRoundMatches) {
     await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).collection('knockout_matches').add({
-      'team1': nextRoundMatches[i][0],
-      'team2': nextRoundMatches[i][1],
+      'team1': match[0],
+      'team2': match[1],
       'winner': '',
       'round': nextRoundName,
     });
   }
+
+  print("Created $nextRoundName matches");
+}
+
+Future<List<Map<String, dynamic>>> createFinalStandings(String tournamentId, List<QueryDocumentSnapshot> allMatches) async {
+  List<Map<String, dynamic>> finalStandings = [];
+  Map<String, String> roundInfo = {};
+
+  for (var match in allMatches) {
+    String winner = match['winner'];
+    String loser = match['team1'] == winner ? match['team2'] : match['team1'];
+    roundInfo[winner] = match['round'];
+    roundInfo[loser] = match['round'];
+  }
+
+  // Winner of the final
+  finalStandings.add({
+    'team': allMatches.firstWhere((match) => match['round'] == 'Final')['winner'],
+    'position': 1
+  });
+
+  // Runner-up (loser of the final)
+  String runnerUp = allMatches.firstWhere((match) => match['round'] == 'Final')['team1'] == finalStandings[0]['team'] ? allMatches.firstWhere((match) => match['round'] == 'Final')['team2'] : allMatches.firstWhere((match) => match['round'] == 'Final')['team1'];
+  finalStandings.add({
+    'team': runnerUp,
+    'position': 2
+  });
+
+  // Semi-finalists (3rd place)
+  List<String> semiFinalLosers = allMatches.where((match) => match['round'] == 'Semi Finals' && match['winner'] != '').map((match) => match['team1'] == match['winner'] ? match['team2'] : match['team1']).toList().cast<String>();
+  for (var semifinalist in semiFinalLosers) {
+    finalStandings.add({
+      'team': semifinalist,
+      'position': 3
+    });
+  }
+
+  // Quarter-finalists (5th place)
+  List<String> quarterFinalLosers = allMatches.where((match) => match['round'] == 'Quarter Finals' && match['winner'] != '').map((match) => match['team1'] == match['winner'] ? match['team2'] : match['team1']).toList().cast<String>();
+  for (var quarterfinalist in quarterFinalLosers) {
+    finalStandings.add({
+      'team': quarterfinalist,
+      'position': 5
+    });
+  }
+
+  // Get pool standings for teams that didn't make the knockout stage
+  final poolsSnapshot = await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).collection('pools').get();
+
+  List<Map<String, dynamic>> nonKnockoutTeams = [];
+
+  for (var pool in poolsSnapshot.docs) {
+    List<String> teams = List<String>.from(pool['teams']);
+    List<int> wins = List<int>.from(pool['wins']);
+    for (int i = 0; i < teams.length; i++) {
+      if (!finalStandings.any((standing) => standing['team'] == teams[i])) {
+        nonKnockoutTeams.add({
+          'team': teams[i],
+          'wins': wins[i]
+        });
+      }
+    }
+  }
+
+  // Sort non-knockout teams based on wins
+  nonKnockoutTeams.sort((a, b) => b['wins'].compareTo(a['wins']));
+
+  // Assign positions to non-knockout teams
+  int startPosition = 5 + quarterFinalLosers.length;
+  for (int i = 0; i < nonKnockoutTeams.length; i++) {
+    finalStandings.add({
+      'team': nonKnockoutTeams[i]['team'],
+      'position': startPosition
+    });
+    if ((i + 1) % 2 == 0) {
+      startPosition += 2;
+    }
+  }
+
+  return finalStandings;
 }
