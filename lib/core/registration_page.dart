@@ -19,10 +19,13 @@ class RegistrationPage extends StatefulWidget {
 class _RegistrationPageState extends State<RegistrationPage> with SingleTickerProviderStateMixin {
   bool isAdmin = false;
   List<Team> registeredTeams = [];
+  late Stream<DocumentSnapshot> tournamentStream;
 
   @override
   void initState() {
     super.initState();
+    tournamentStream = FirebaseFirestore.instance.collection('tournaments').doc(widget.tournament.id).snapshots();
+    print("Tournament stream initialized"); // Debug print
     _fetchUserData();
     _fetchRegisteredTeams();
   }
@@ -164,19 +167,23 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
   }
 
   Widget _buildStandingsTab() {
+    print("Building standings tab"); // Debug print
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance.collection('tournaments').doc(widget.tournament.id).snapshots(),
       builder: (context, snapshot) {
+        print("StreamBuilder update received"); // Debug print
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(child: CircularProgressIndicator());
         }
         if (!snapshot.hasData || !snapshot.data!.exists) {
+          print("No data or document doesn't exist"); // Debug print
           return Center(child: Text('Tournament data not available'));
         }
 
         final tournamentData = snapshot.data!.data() as Map<String, dynamic>;
+        print("Tournament data: $tournamentData"); // Debug print
         final finalStandings = tournamentData['final_standings'] as List<dynamic>?;
-        print('Final Standings: $finalStandings'); // Add this line for debugging
+        print("Final standings: $finalStandings"); // Debug print
 
         return Padding(
           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -205,7 +212,7 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
                   )),
                 ],
               ),
-              if (finalStandings != null && finalStandings.isNotEmpty) ...finalStandings.map((standing) => _buildFinalStandingRow(standing)) else ..._buildCurrentStandingsRows(),
+              if (finalStandings != null && finalStandings.isNotEmpty) ...finalStandings.map((standing) => _buildStandingRow(standing)) else ..._buildCurrentStandingsRows(),
             ],
           ),
         );
@@ -213,7 +220,7 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
     );
   }
 
-  TableRow _buildFinalStandingRow(Map<String, dynamic> standing) {
+  TableRow _buildStandingRow(Map<String, dynamic> standing) {
     return TableRow(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.grey.shade800, width: 1)),
@@ -418,6 +425,17 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
           icon: Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: () {
+              setState(() {
+                // This empty setState will force a rebuild
+              });
+              print("Manual refresh triggered"); // Debug print
+            },
+          ),
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -453,34 +471,7 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
                   Expanded(
                     child: TabBarView(
                       children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border(
-                              top: BorderSide(color: Colors.grey.shade800),
-                              bottom: BorderSide(color: Colors.grey.shade800),
-                            ),
-                          ),
-                          child: Table(
-                            columnWidths: const {
-                              0: FlexColumnWidth(1),
-                              1: FlexColumnWidth(2),
-                              2: FlexColumnWidth(2),
-                            },
-                            children: [
-                              TableRow(
-                                decoration: BoxDecoration(
-                                  border: Border(bottom: BorderSide(color: Colors.grey.shade800)),
-                                ),
-                                children: [
-                                  TableCell(child: Center(child: Text('#', style: TextStyle(color: Colors.grey)))),
-                                  TableCell(child: Text('Player 1', style: TextStyle(color: Colors.grey))),
-                                  TableCell(child: Text('Player 2', style: TextStyle(color: Colors.grey))),
-                                ],
-                              ),
-                              ..._buildCurrentStandingsRows(),
-                            ],
-                          ),
-                        ),
+                        _buildStandingsTab(),
                         PoolsTab(tournamentId: widget.tournament.id),
                         MatchesTab(tournamentId: widget.tournament.id),
                       ],

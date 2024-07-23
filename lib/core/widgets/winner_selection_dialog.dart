@@ -158,8 +158,15 @@ class _WinnerSelectionDialogState extends State<WinnerSelectionDialog> {
     if (allKnockoutMatchesCompleted) {
       await createNextKnockoutMatchesOrFinalize(tournamentId);
 
-      // Refresh the standings tab
+      // Force an update to the tournament document to trigger the stream
+      await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).update({
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      print("All knockout matches completed, tournament updated"); // Debug print
       Navigator.of(context).pop(selectedWinner);
+    } else {
+      print("Not all knockout matches are completed yet"); // Debug print
     }
   }
 }
@@ -231,11 +238,14 @@ Future<void> createNextKnockoutMatchesOrFinalize(String tournamentId) async {
 
   List<String> winners = [];
   List<String> losers = [];
+  Map<String, String> roundInfo = {};
 
   for (var match in knockoutMatchesSnapshot.docs) {
     winners.add(match['winner']);
     String loser = (match['team1'] == match['winner']) ? match['team2'] : match['team1'];
     losers.add(loser);
+    roundInfo[match['winner']] = match['round'];
+    roundInfo[loser] = match['round'];
   }
 
   // Determine the next round name and the number of matches
@@ -252,34 +262,35 @@ Future<void> createNextKnockoutMatchesOrFinalize(String tournamentId) async {
     // Create final standings if all rounds are completed
     List<Map<String, dynamic>> finalStandings = [];
 
-    // Winner and loser of the final
+    // Winner of the final
     finalStandings.add({
       'team': winners[0],
       'position': 1
     });
+
+    // Runner-up (loser of the final)
+    String runnerUp = losers.firstWhere((loser) => roundInfo[loser] == 'Final');
     finalStandings.add({
-      'team': losers[0],
+      'team': runnerUp,
       'position': 2
     });
 
-    // Teams that lost in the semi-finals
-    finalStandings.add({
-      'team': losers[1],
-      'position': 3
-    });
-    finalStandings.add({
-      'team': losers[2],
-      'position': 3
-    });
-
-    // Teams that lost in the quarter-finals
-    int quarterFinalLosersCount = 0;
-    for (int i = 3; i < losers.length; i++) {
+    // Semi-finalists (3rd place)
+    List<String> semiFinalLosers = losers.where((loser) => roundInfo[loser] == 'Semi Finals').toList();
+    for (var semifinalist in semiFinalLosers) {
       finalStandings.add({
-        'team': losers[i],
+        'team': semifinalist,
+        'position': 3
+      });
+    }
+
+    // Quarter-finalists (5th place)
+    List<String> quarterFinalLosers = losers.where((loser) => roundInfo[loser] == 'Quarter Finals').toList();
+    for (var quarterfinalist in quarterFinalLosers) {
+      finalStandings.add({
+        'team': quarterfinalist,
         'position': 5
       });
-      quarterFinalLosersCount++;
     }
 
     // Get pool standings for teams that didn't make the knockout stage
@@ -304,17 +315,14 @@ Future<void> createNextKnockoutMatchesOrFinalize(String tournamentId) async {
     nonKnockoutTeams.sort((a, b) => b['wins'].compareTo(a['wins']));
 
     // Assign positions to non-knockout teams
-    int startPosition = 5 + quarterFinalLosersCount;
-    int nextPosition = startPosition + 2;
-
+    int startPosition = 5 + quarterFinalLosers.length;
     for (int i = 0; i < nonKnockoutTeams.length; i++) {
       finalStandings.add({
         'team': nonKnockoutTeams[i]['team'],
         'position': startPosition
       });
       if ((i + 1) % 2 == 0) {
-        startPosition = nextPosition;
-        nextPosition += 2;
+        startPosition += 2;
       }
     }
 
