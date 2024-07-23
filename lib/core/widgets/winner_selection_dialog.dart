@@ -151,14 +151,15 @@ class _WinnerSelectionDialogState extends State<WinnerSelectionDialog> {
   }
 
   Future<void> updateKnockoutMatch(String tournamentId) async {
-    // Check if all knockout matches in this round are completed
     QuerySnapshot knockoutMatches = await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).collection('knockout_matches').get();
 
     bool allKnockoutMatchesCompleted = knockoutMatches.docs.every((doc) => doc['winner'] != '');
 
     if (allKnockoutMatchesCompleted) {
-      // Create the next set of knockout matches or finalize standings if final match is completed
       await createNextKnockoutMatchesOrFinalize(tournamentId);
+
+      // Refresh the standings tab
+      Navigator.of(context).pop(selectedWinner);
     }
   }
 }

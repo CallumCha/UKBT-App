@@ -5,8 +5,7 @@ import 'package:ukbtapp/core/auth/models/tournament_model.dart';
 import 'package:ukbtapp/core/auth/models/team_model.dart';
 import 'package:ukbtapp/core/widgets/pools_tab.dart'; // Import the PoolsTab widget
 import 'package:ukbtapp/core/widgets/matches_tab.dart'; // Import the MatchesTab widget
-import 'package:ukbtapp/core/widgets/knockout_matches_tab.dart'; // Import the KnockoutMatchesTab widget
-import 'package:ukbtapp/core/widgets/final_standings_tab.dart'; // Import the FinalStandingsTab widget
+// Import the FinalStandingsTab widget
 
 class RegistrationPage extends StatefulWidget {
   final Tournament tournament;
@@ -20,14 +19,12 @@ class RegistrationPage extends StatefulWidget {
 class _RegistrationPageState extends State<RegistrationPage> with SingleTickerProviderStateMixin {
   bool isAdmin = false;
   List<Team> registeredTeams = [];
-  TabController? _tabController;
 
   @override
   void initState() {
     super.initState();
     _fetchUserData();
     _fetchRegisteredTeams();
-    _tabController = TabController(length: 5, vsync: this); // Set the length to 5 for the five tabs
   }
 
   Future<void> _fetchUserData() async {
@@ -105,58 +102,42 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
     final user1Uid = await _getUserUidByUkbtNo(user1UkbtNo);
     final user2Uid = await _getUserUidByUkbtNo(user2UkbtNo);
     if (user1Uid != null && user2Uid != null) {
-      await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournament.id).collection('teams').add({
+      final teamRef = await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournament.id).collection('teams').add({
         'player1': user1Uid,
         'player2': user2Uid,
         'ukbtno1': user1UkbtNo,
         'ukbtno2': user2UkbtNo,
       });
-      _fetchRegisteredTeams();
+
+      final newTeam = Team(
+        id: teamRef.id,
+        player1: user1Uid,
+        player2: user2Uid,
+        ukbtno1: user1UkbtNo,
+        ukbtno2: user2UkbtNo,
+      );
+
+      setState(() {
+        registeredTeams.add(newTeam);
+      });
     } else {
-      // Handle case where user UIDs are not found
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('User(s) not found')),
       );
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Register for ${widget.tournament.name}'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'Registration'),
-            Tab(text: 'Pools'),
-            Tab(text: 'Matches'),
-            Tab(text: 'Knockout Matches'), // Add the Knockout Matches tab here
-            Tab(text: 'Final Standings'), // Add the Final Standings tab here
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildRegistrationTab(),
-          PoolsTab(tournamentId: widget.tournament.id),
-          MatchesTab(tournamentId: widget.tournament.id),
-          KnockoutMatchesTab(tournamentId: widget.tournament.id), // Use the KnockoutMatchesTab widget
-          FinalStandingsTab(tournamentId: widget.tournament.id), // Use the FinalStandingsTab widget
-        ],
-      ),
-    );
-  }
+  void _showSignUpDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final user1Controller = TextEditingController();
+        final user2Controller = TextEditingController();
 
-  Widget _buildRegistrationTab() {
-    final TextEditingController user1Controller = TextEditingController();
-    final TextEditingController user2Controller = TextEditingController();
-
-    return Column(
-      children: [
-        if (widget.tournament.registrationOpen)
-          Column(
+        return AlertDialog(
+          title: Text('Sign up'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: user1Controller,
@@ -166,75 +147,370 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
                 controller: user2Controller,
                 decoration: const InputDecoration(labelText: 'Enter UKBT No for Player 2'),
               ),
-              ElevatedButton(
-                onPressed: () {
-                  _registerTeam(user1Controller.text, user2Controller.text);
-                },
-                child: const Text('Register'),
-              ),
             ],
-          )
-        else
-          const Text('Registration is closed'),
-        Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('#')),
-                DataColumn(label: Text('Player 1')),
-                DataColumn(label: Text('Player 2')),
-              ],
-              rows: registeredTeams.asMap().entries.map((entry) {
-                int index = entry.key + 1;
-                Team team = entry.value;
-                return DataRow(
-                  cells: [
-                    DataCell(Text('$index')),
-                    DataCell(
-                      team.user1.isNotEmpty
-                          ? FutureBuilder<DocumentSnapshot>(
-                              future: FirebaseFirestore.instance.collection('users').doc(team.user1).get(),
-                              builder: (context, snapshot) {
-                                if (snapshot.connectionState == ConnectionState.waiting) {
-                                  return const Text('Loading...');
-                                } else if (!snapshot.hasData || snapshot.data?.data() == null) {
-                                  return const Text('No data');
-                                } else {
-                                  return Text((snapshot.data!.data() as Map<String, dynamic>)['name']);
-                                }
-                              },
-                            )
-                          : const Text('No data'),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                _registerTeam(user1Controller.text, user2Controller.text);
+                Navigator.of(context).pop();
+              },
+              child: const Text('Sign up'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStandingsTab() {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('tournaments').doc(widget.tournament.id).snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return Center(child: Text('Tournament data not available'));
+        }
+
+        final tournamentData = snapshot.data!.data() as Map<String, dynamic>;
+        final finalStandings = tournamentData['final_standings'] as List<dynamic>?;
+        print('Final Standings: $finalStandings'); // Add this line for debugging
+
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Table(
+            columnWidths: const {
+              0: FixedColumnWidth(40),
+              1: FlexColumnWidth(2),
+              2: FlexColumnWidth(2),
+            },
+            children: [
+              TableRow(
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Colors.grey.shade800, width: 1)),
+                ),
+                children: [
+                  TableCell(child: Center(child: Text('#', style: TextStyle(color: Colors.grey)))),
+                  TableCell(
+                      child: Padding(
+                    padding: EdgeInsets.only(left: 8),
+                    child: Text('Player 1', style: TextStyle(color: Colors.grey)),
+                  )),
+                  TableCell(
+                      child: Padding(
+                    padding: EdgeInsets.only(left: 8),
+                    child: Text('Player 2', style: TextStyle(color: Colors.grey)),
+                  )),
+                ],
+              ),
+              if (finalStandings != null && finalStandings.isNotEmpty) ...finalStandings.map((standing) => _buildFinalStandingRow(standing)) else ..._buildCurrentStandingsRows(),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  TableRow _buildFinalStandingRow(Map<String, dynamic> standing) {
+    return TableRow(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.grey.shade800, width: 1)),
+      ),
+      children: [
+        TableCell(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: _getRankColor(standing['position']),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Center(
+                  child: Text(
+                    '${standing['position']}',
+                    style: TextStyle(
+                      color: standing['position'] <= 3 ? Colors.black : Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
-                    DataCell(
-                      team.user2.isNotEmpty
-                          ? FutureBuilder<DocumentSnapshot>(
-                              future: FirebaseFirestore.instance.collection('users').doc(team.user2).get(),
-                              builder: (context, snapshot) {
-                                if (snapshot.connectionState == ConnectionState.waiting) {
-                                  return const Text('Loading...');
-                                } else if (!snapshot.hasData || snapshot.data?.data() == null) {
-                                  return const Text('No data b');
-                                } else {
-                                  return Text((snapshot.data!.data() as Map<String, dynamic>)['name']);
-                                }
-                              },
-                            )
-                          : const Text('No data c'),
-                    ),
-                  ],
-                );
-              }).toList(),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
-        if (isAdmin && widget.tournament.registrationOpen)
-          ElevatedButton(
-            onPressed: _closeRegistration,
-            child: const Text('Close Registration'),
+        TableCell(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            child: FutureBuilder<Map<String, String>>(
+              future: _fetchTeamPlayerNames(standing['team']),
+              builder: (context, snapshot) => Text(
+                snapshot.data?['player1Name'] ?? 'Loading...',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
           ),
+        ),
+        TableCell(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            child: FutureBuilder<Map<String, String>>(
+              future: _fetchTeamPlayerNames(standing['team']),
+              builder: (context, snapshot) => Text(
+                snapshot.data?['player2Name'] ?? 'Loading...',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ),
+        ),
       ],
+    );
+  }
+
+  List<TableRow> _buildCurrentStandingsRows() {
+    return registeredTeams.asMap().entries.map((entry) {
+      int index = entry.key;
+      Team team = entry.value;
+      return TableRow(
+        children: [
+          TableCell(
+            child: Container(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Center(
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: _getRankColor(index + 1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${index + 1}',
+                      style: TextStyle(
+                        color: index < 3 ? Colors.black : Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          TableCell(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: FutureBuilder<String>(
+                future: _fetchUserName(team.player1),
+                builder: (context, snapshot) => Text(
+                  snapshot.data ?? 'Loading...',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+          ),
+          TableCell(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: FutureBuilder<String>(
+                future: _fetchUserName(team.player2),
+                builder: (context, snapshot) => Text(
+                  snapshot.data ?? 'Loading...',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }).toList();
+  }
+
+  Color _getRankColor(int rank) {
+    switch (rank) {
+      case 1:
+        return Colors.amber;
+      case 2:
+        return Colors.grey.shade400;
+      case 3:
+        return Colors.brown.shade300;
+      default:
+        return Colors.transparent;
+    }
+  }
+
+  Widget _buildRankCell(int rank) {
+    Color backgroundColor;
+    Color textColor;
+
+    switch (rank) {
+      case 1:
+        backgroundColor = Colors.amber;
+        textColor = Colors.black;
+        break;
+      case 2:
+        backgroundColor = Colors.grey[300]!;
+        textColor = Colors.black;
+        break;
+      case 3:
+        backgroundColor = Colors.brown[300]!;
+        textColor = Colors.black;
+        break;
+      default:
+        backgroundColor = Colors.transparent;
+        textColor = Colors.white;
+    }
+
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Center(
+        child: Text(
+          rank.toString(),
+          style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  Future<Map<String, String>> _fetchTeamPlayerNames(String teamId) async {
+    final teamSnapshot = await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournament.id).collection('teams').doc(teamId).get();
+
+    if (teamSnapshot.exists) {
+      final teamData = teamSnapshot.data() as Map<String, dynamic>;
+      final player1Name = await _fetchUserName(teamData['player1']);
+      final player2Name = await _fetchUserName(teamData['player2']);
+
+      return {
+        'player1Name': player1Name,
+        'player2Name': player2Name,
+      };
+    }
+    return {
+      'player1Name': 'Unknown',
+      'player2Name': 'Unknown',
+    };
+  }
+
+  Future<String> _fetchUserName(String userId) async {
+    final userSnapshot = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+    if (userSnapshot.exists) {
+      final userData = userSnapshot.data() as Map<String, dynamic>;
+      return userData['name'] ?? 'No name';
+    }
+    return 'No name';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.tournament.name),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.all(16),
+            child: _buildTournamentDetails(),
+          ),
+          if (widget.tournament.registrationOpen)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: ElevatedButton(
+                onPressed: _showSignUpDialog,
+                child: Text('Sign up'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber,
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ),
+          Expanded(
+            child: DefaultTabController(
+              length: 3,
+              child: Column(
+                children: [
+                  TabBar(
+                    tabs: [
+                      Tab(text: 'Standings'),
+                      Tab(text: 'Pools'),
+                      Tab(text: 'Matches'),
+                    ],
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border(
+                              top: BorderSide(color: Colors.grey.shade800),
+                              bottom: BorderSide(color: Colors.grey.shade800),
+                            ),
+                          ),
+                          child: Table(
+                            columnWidths: const {
+                              0: FlexColumnWidth(1),
+                              1: FlexColumnWidth(2),
+                              2: FlexColumnWidth(2),
+                            },
+                            children: [
+                              TableRow(
+                                decoration: BoxDecoration(
+                                  border: Border(bottom: BorderSide(color: Colors.grey.shade800)),
+                                ),
+                                children: [
+                                  TableCell(child: Center(child: Text('#', style: TextStyle(color: Colors.grey)))),
+                                  TableCell(child: Text('Player 1', style: TextStyle(color: Colors.grey))),
+                                  TableCell(child: Text('Player 2', style: TextStyle(color: Colors.grey))),
+                                ],
+                              ),
+                              ..._buildCurrentStandingsRows(),
+                            ],
+                          ),
+                        ),
+                        PoolsTab(tournamentId: widget.tournament.id),
+                        MatchesTab(tournamentId: widget.tournament.id),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isAdmin && widget.tournament.registrationOpen)
+            ElevatedButton(
+              onPressed: _closeRegistration,
+              child: Text('Close Registration'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTournamentDetails() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Gender: ${widget.tournament.gender}'),
+          Text('Level: ${widget.tournament.level}'),
+          Text('Location: ${widget.tournament.location}'),
+        ],
+      ),
     );
   }
 }

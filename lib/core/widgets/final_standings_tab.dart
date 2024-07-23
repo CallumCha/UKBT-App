@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class FinalStandingsTab extends StatelessWidget {
+class FinalStandingsTab extends StatefulWidget {
   final String tournamentId;
 
   const FinalStandingsTab({Key? key, required this.tournamentId}) : super(key: key);
 
+  @override
+  _FinalStandingsTabState createState() => _FinalStandingsTabState();
+}
+
+class _FinalStandingsTabState extends State<FinalStandingsTab> {
   Future<List<Map<String, dynamic>>> _fetchFinalStandings() async {
-    final docSnapshot = await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).get();
+    final docSnapshot = await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).get();
     final data = docSnapshot.data();
 
     if (data != null && data['final_standings'] != null) {
@@ -20,7 +25,7 @@ class FinalStandingsTab extends StatelessWidget {
   }
 
   Future<Map<String, String>> _fetchTeamPlayerNames(String teamId) async {
-    final teamSnapshot = await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).collection('teams').doc(teamId).get();
+    final teamSnapshot = await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).collection('teams').doc(teamId).get();
     if (teamSnapshot.exists) {
       final teamData = teamSnapshot.data() as Map<String, dynamic>;
       final player1Id = teamData['player1'];
@@ -51,18 +56,23 @@ class FinalStandingsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _fetchFinalStandings(),
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('No final standings available'));
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const Center(child: Text('No tournament data available'));
         }
 
-        final standings = snapshot.data!;
+        final tournamentData = snapshot.data!.data() as Map<String, dynamic>;
+        final finalStandings = tournamentData['final_standings'] as List<dynamic>?;
+
+        if (finalStandings == null || finalStandings.isEmpty) {
+          return const Center(child: Text('No final standings available'));
+        }
 
         return ListView(
           children: [
@@ -72,7 +82,7 @@ class FinalStandingsTab extends StatelessWidget {
                 DataColumn(label: Text('Player 1')),
                 DataColumn(label: Text('Player 2')),
               ],
-              rows: standings.map((entry) {
+              rows: finalStandings.map((entry) {
                 final teamId = entry['team'] as String?;
                 if (teamId == null) {
                   return DataRow(
