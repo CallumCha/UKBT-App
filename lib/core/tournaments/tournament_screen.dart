@@ -37,6 +37,12 @@ class _TournamentScreenState extends State<TournamentScreen> {
     final snapshot = await FirebaseFirestore.instance.collection('tournaments').get();
     setState(() {
       tournaments = snapshot.docs.map((doc) => Tournament.fromDocument(doc)).toList();
+      tournaments.sort((a, b) {
+        if (a.date == null && b.date == null) return 0;
+        if (a.date == null) return 1;
+        if (b.date == null) return -1;
+        return a.date!.compareTo(b.date!);
+      });
     });
   }
 
@@ -46,16 +52,18 @@ class _TournamentScreenState extends State<TournamentScreen> {
     final TextEditingController genderController = TextEditingController();
     final TextEditingController levelController = TextEditingController();
     final TextEditingController locationController = TextEditingController();
+    DateTime selectedDate = DateTime.now();
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Create Tournament'),
-          content: Form(
-            key: formKey,
-            child: SingleChildScrollView(
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   TextFormField(
                     controller: nameController,
@@ -97,6 +105,27 @@ class _TournamentScreenState extends State<TournamentScreen> {
                       return null;
                     },
                   ),
+                  InkWell(
+                    onTap: () async {
+                      final DateTime? picked = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (picked != null && picked != selectedDate) {
+                        selectedDate = picked;
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Date',
+                      ),
+                      child: Text(
+                        "${selectedDate.toLocal()}".split(' ')[0],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -116,6 +145,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
                     genderController.text,
                     levelController.text,
                     locationController.text,
+                    selectedDate,
                   );
                   Navigator.of(context).pop();
                 }
@@ -128,7 +158,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
     );
   }
 
-  void _createTournament(String name, String gender, String level, String location) async {
+  void _createTournament(String name, String gender, String level, String location, DateTime date) async {
     await FirebaseFirestore.instance.collection('tournaments').add({
       'name': name,
       'stage': 'registration',
@@ -136,6 +166,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
       'gender': gender,
       'level': level,
       'location': location,
+      'date': Timestamp.fromDate(date),
     });
     _fetchTournaments(); // Refresh the list of tournaments
   }
@@ -160,7 +191,10 @@ class _TournamentScreenState extends State<TournamentScreen> {
                 final tournament = tournaments[index];
                 return ListTile(
                   title: Text(tournament.name),
-                  subtitle: Text('Stage: ${tournament.stage}'),
+                  subtitle: Text(
+                    '${tournament.gender} - ${tournament.level} - ${tournament.location}\n'
+                    'Date: ${tournament.date?.toLocal().toString().split(' ')[0] ?? 'Not specified'}',
+                  ),
                   onTap: () {
                     Navigator.push(
                       context,

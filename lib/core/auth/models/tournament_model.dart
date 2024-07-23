@@ -7,10 +7,11 @@ class Tournament {
   final int currentRound;
   final int totalRounds;
   final bool knockoutStarted;
-  bool registrationOpen; // Remove final keyword
+  bool registrationOpen;
   final String gender;
   final String level;
   final String location;
+  final DateTime? date;
 
   Tournament({
     required this.id,
@@ -23,6 +24,7 @@ class Tournament {
     required this.gender,
     required this.level,
     required this.location,
+    this.date,
   });
 
   factory Tournament.fromDocument(DocumentSnapshot doc) {
@@ -38,6 +40,7 @@ class Tournament {
       gender: data['gender'] ?? '',
       level: data['level'] ?? '',
       location: data['location'] ?? '',
+      date: data['date'] != null ? (data['date'] as Timestamp).toDate() : null,
     );
   }
 
@@ -53,6 +56,7 @@ class Tournament {
       gender: data['gender'] ?? '',
       level: data['level'] ?? '',
       location: data['location'] ?? '',
+      date: data['date'] != null ? (data['date'] as Timestamp).toDate() : null,
     );
   }
 
@@ -67,6 +71,7 @@ class Tournament {
       'gender': gender,
       'level': level,
       'location': location,
+      'date': date != null ? Timestamp.fromDate(date!) : null,
     };
   }
 }
