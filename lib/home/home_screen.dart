@@ -1,25 +1,63 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:math';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:ukbtapp/shared/bottom_nav.dart';
 import 'package:ukbtapp/core/auth/models/user_model.dart';
 import 'package:ukbtapp/core/widgets/update_all_users_tournament_history.dart';
+import 'package:ukbtapp/core/auth/models/tournament_model.dart';
+import 'package:ukbtapp/core/registration_page.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
-  Future<void> _addNewPlayer() async {
-    final random = Random();
-    final userModel = User(
-      id: '', // Firestore will generate the ID
-      name: 'User${random.nextInt(10000)}',
-      email: 'user${random.nextInt(10000)}@example.com',
-      ukbtno: (random.nextInt(9000) + 1000).toString(),
-      isAdmin: false,
-      tournamentHistory: [],
-    );
+  @override
+  _HomeScreenState createState() => _HomeScreenState();
+}
 
-    await FirebaseFirestore.instance.collection('users').add(userModel.toMap());
+class _HomeScreenState extends State<HomeScreen> {
+  List<Tournament> _upcomingTournaments = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUpcomingTournaments();
+  }
+
+  Future<void> _fetchUpcomingTournaments() async {
+    final user = auth.FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+
+      if (!userDoc.data()!.containsKey('registeredTournaments')) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+          'registeredTournaments': [],
+        });
+      }
+
+      final registeredTournamentIds = List<String>.from(userDoc.data()!['registeredTournaments'] ?? []);
+
+      setState(() {
+        _upcomingTournaments = []; // Initialize with an empty list
+      });
+
+      if (registeredTournamentIds.isNotEmpty) {
+        final now = DateTime.now();
+        for (String tournamentId in registeredTournamentIds) {
+          final tournamentDoc = await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).get();
+
+          if (tournamentDoc.exists) {
+            final tournamentData = tournamentDoc.data()!;
+            final tournamentDate = tournamentData['date'] as Timestamp;
+            if (tournamentDate.toDate().isAfter(now)) {
+              setState(() {
+                _upcomingTournaments.add(Tournament.fromMap(tournamentData, tournamentId));
+              });
+              if (_upcomingTournaments.length >= 2) break; // Limit to 2 tournaments
+            }
+          }
+        }
+      }
+    }
   }
 
   void _updateTournamentHistory(BuildContext context) async {
@@ -41,18 +79,56 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Home'),
       ),
-      body: Center(
+      body: SingleChildScrollView(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Welcome to the Home Screen'),
-            ElevatedButton(
-              onPressed: _addNewPlayer,
-              child: const Text('Add New Player'),
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text(
+                'Your Upcoming Tournaments',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
             ),
-            ElevatedButton(
-              onPressed: () => _updateTournamentHistory(context),
-              child: const Text('Update Tournament History'),
+            if (_upcomingTournaments.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text('You have no upcoming tournaments'),
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _upcomingTournaments.length,
+                itemBuilder: (context, index) {
+                  final tournament = _upcomingTournaments[index];
+                  return ListTile(
+                    title: Text(tournament.name),
+                    subtitle: Text(
+                      '${tournament.gender} - ${tournament.level}\n'
+                      '${tournament.location}',
+                    ),
+                    trailing: Text(
+                      tournament.date?.toLocal().toString().split(' ')[0] ?? 'Date not specified',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => RegistrationPage(tournament: tournament),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            const SizedBox(height: 20),
+            Center(
+              child: ElevatedButton(
+                onPressed: () => _updateTournamentHistory(context),
+                child: const Text('Update Tournament History'),
+              ),
             ),
           ],
         ),

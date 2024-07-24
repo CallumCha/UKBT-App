@@ -123,11 +123,22 @@ class _RegistrationPageState extends State<RegistrationPage> with SingleTickerPr
       setState(() {
         registeredTeams.add(newTeam);
       });
+
+      await _addTournamentToUserRegistrations(user1Uid, widget.tournament.id);
+      await _addTournamentToUserRegistrations(user2Uid, widget.tournament.id);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('User(s) not found')),
       );
     }
+  }
+
+  Future<void> _addTournamentToUserRegistrations(String userId, String tournamentId) async {
+    await FirebaseFirestore.instance.collection('users').doc(userId).update({
+      'registeredTournaments': FieldValue.arrayUnion([
+        tournamentId
+      ]),
+    });
   }
 
   void _showSignUpDialog() {
