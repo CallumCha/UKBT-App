@@ -275,41 +275,45 @@ Future<void> createNextKnockoutMatchesOrFinalize(String tournamentId) async {
   print("Final standings created and tournament marked as completed");
 
   // Update user documents with tournament history
+  String tournamentName = await getTournamentName(tournamentId);
+  Timestamp date = await getTournamentDate(tournamentId);
+
   for (var standing in finalStandings) {
     String teamId = standing['team'];
     int position = standing['position'];
-    String tournamentName = await getTournamentName(tournamentId);
-    Timestamp date = await getTournamentDate(tournamentId);
 
-    QuerySnapshot teamSnapshot = await FirebaseFirestore.instance.collection('teams').where('id', isEqualTo: teamId).get();
-    if (teamSnapshot.docs.isNotEmpty) {
-      Map<String, dynamic> teamData = teamSnapshot.docs.first.data() as Map<String, dynamic>;
-      String user1Id = teamData['user1'];
-      String user2Id = teamData['user2'];
+    DocumentSnapshot teamDoc = await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).collection('teams').doc(teamId).get();
 
-      await updateUserTournamentHistory(user1Id, {
+    if (teamDoc.exists) {
+      Map<String, dynamic> teamData = teamDoc.data() as Map<String, dynamic>;
+      String player1Id = teamData['player1'];
+      String player2Id = teamData['player2'];
+
+      await updateUserTournamentHistory(player1Id, {
         'tournamentId': tournamentId,
         'tournamentName': tournamentName,
         'date': date,
         'position': position,
         'partner': {
-          'id': user2Id,
-          'name': await getUserName(user2Id)
+          'id': player2Id,
+          'name': await getUserName(player2Id)
         }
       });
 
-      await updateUserTournamentHistory(user2Id, {
+      await updateUserTournamentHistory(player2Id, {
         'tournamentId': tournamentId,
         'tournamentName': tournamentName,
         'date': date,
         'position': position,
         'partner': {
-          'id': user1Id,
-          'name': await getUserName(user1Id)
+          'id': player1Id,
+          'name': await getUserName(player1Id)
         }
       });
     }
   }
+
+  print("Tournament history updated for all participants");
 }
 
 Future<List<Map<String, dynamic>>> createFinalStandings(String tournamentId, List<QueryDocumentSnapshot> allMatches) async {
