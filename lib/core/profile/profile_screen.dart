@@ -17,6 +17,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   User? _user;
   List<Map<String, dynamic>> _tournaments = [];
   bool _showAllTournaments = false;
+  bool _isGuestUser = false;
 
   @override
   void initState() {
@@ -27,14 +28,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadUserData() async {
     final user = auth.FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-      final userData = User.fromDocument(doc);
-      final tournamentHistory = userData.tournamentHistory;
-      tournamentHistory.sort((a, b) => b['date'].compareTo(a['date']));
-      setState(() {
-        _user = userData;
-        _tournaments = tournamentHistory;
-      });
+      if (user.isAnonymous) {
+        setState(() {
+          _isGuestUser = true;
+        });
+      } else {
+        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        if (doc.exists) {
+          final userData = User.fromDocument(doc);
+          final tournamentHistory = userData.tournamentHistory;
+          tournamentHistory.sort((a, b) => b['date'].compareTo(a['date']));
+          setState(() {
+            _user = userData;
+            _tournaments = tournamentHistory;
+          });
+        }
+      }
     }
   }
 
@@ -67,6 +76,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isGuestUser) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Guest Profile'),
+          centerTitle: true,
+        ),
+        body: Center(
+          child: ElevatedButton(
+            onPressed: _signOut,
+            child: const Text('Sign Out'),
+          ),
+        ),
+      );
+    }
+
     if (_user == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
