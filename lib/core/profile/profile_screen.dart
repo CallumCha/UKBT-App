@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:ukbtapp/shared/bottom_nav.dart';
+import 'package:ukbtapp/core/auth/models/user_model.dart';
+import 'package:ukbtapp/core/widgets/tournament_history_widget.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -11,59 +13,55 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  String? userName;
-  String? userEmail;
-  bool isAdmin = true;
+  User? _user;
 
   @override
   void initState() {
     super.initState();
-    _fetchUserData();
+    _loadUserData();
   }
 
-  Future<void> _fetchUserData() async {
-    final user = FirebaseAuth.instance.currentUser;
+  Future<void> _loadUserData() async {
+    final user = auth.FirebaseAuth.instance.currentUser;
     if (user != null) {
       final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       setState(() {
-        userName = doc.data()?['name'];
-        userEmail = doc.data()?['email'];
-        isAdmin = doc.data()?['admin'] ?? false;
+        _user = User.fromDocument(doc);
       });
     }
   }
 
   void _signOut() async {
-    await FirebaseAuth.instance.signOut();
+    await auth.FirebaseAuth.instance.signOut();
     Navigator.pushReplacementNamed(context, '/login');
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_user == null) {
+      return Center(child: CircularProgressIndicator());
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
       ),
-      body: userName == null || userEmail == null
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Name: $userName', style: const TextStyle(fontSize: 20)),
-                  const SizedBox(height: 8),
-                  Text('Email: $userEmail', style: const TextStyle(fontSize: 20)),
-                  const SizedBox(height: 8),
-                  Text('User Type: ${isAdmin ? 'Admin' : 'Regular User'}', style: const TextStyle(fontSize: 20)),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _signOut,
-                    child: const Text('Sign Out'),
-                  ),
-                ],
-              ),
-            ),
+      body: Column(
+        children: [
+          ListTile(
+            title: Text(_user!.name),
+            subtitle: Text(_user!.email),
+          ),
+          Expanded(
+            child: TournamentHistoryWidget(user: _user!),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _signOut,
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
       bottomNavigationBar: BottomNavBar(
         currentIndex: 1, // Assuming profile is at index 1
         onTap: (index) {

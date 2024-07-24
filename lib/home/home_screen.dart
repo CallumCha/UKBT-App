@@ -3,22 +3,36 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math';
 import 'package:ukbtapp/shared/bottom_nav.dart';
 import 'package:ukbtapp/core/auth/models/user_model.dart';
+import 'package:ukbtapp/core/widgets/update_all_users_tournament_history.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   Future<void> _addNewPlayer() async {
     final random = Random();
-    final userModel = UserModel(
+    final userModel = User(
       id: '', // Firestore will generate the ID
       name: 'User${random.nextInt(10000)}',
       email: 'user${random.nextInt(10000)}@example.com',
-      elo: random.nextInt(3000),
-      admin: false,
       ukbtno: (random.nextInt(9000) + 1000).toString(),
+      isAdmin: false,
+      tournamentHistory: [],
     );
 
     await FirebaseFirestore.instance.collection('users').add(userModel.toMap());
+  }
+
+  void _updateTournamentHistory(BuildContext context) async {
+    try {
+      await updateAllUsersTournamentHistory();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tournament history updated successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error updating tournament history: $e')),
+      );
+    }
   }
 
   @override
@@ -35,6 +49,10 @@ class HomeScreen extends StatelessWidget {
             ElevatedButton(
               onPressed: _addNewPlayer,
               child: const Text('Add New Player'),
+            ),
+            ElevatedButton(
+              onPressed: () => _updateTournamentHistory(context),
+              child: const Text('Update Tournament History'),
             ),
           ],
         ),

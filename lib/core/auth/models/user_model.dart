@@ -1,48 +1,42 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class UserModel {
+class User {
   final String id;
   final String name;
   final String email;
-  final int elo;
-  final bool admin;
   final String ukbtno;
+  final bool isAdmin;
+  final List<Map<String, dynamic>> tournamentHistory;
 
-  UserModel({
+  User({
     required this.id,
     required this.name,
     required this.email,
-    required this.elo,
-    this.admin = false,
-    required String ukbtno,
-  }) : ukbtno = _validateUkbtno(ukbtno);
+    required this.ukbtno,
+    required this.isAdmin,
+    required this.tournamentHistory,
+  });
 
-  static String _validateUkbtno(String ukbtno) {
-    if (ukbtno.length != 4 || !RegExp(r'^[0-9]{4}$').hasMatch(ukbtno)) {
-      throw ArgumentError('ukbtno must be a 4-digit string');
-    }
-    return ukbtno;
-  }
-
-  factory UserModel.fromDocument(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    return UserModel(
+  factory User.fromDocument(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return User(
       id: doc.id,
       name: data['name'] ?? '',
       email: data['email'] ?? '',
-      elo: data['elo'] ?? 0,
-      admin: data['admin'] ?? false,
-      ukbtno: data['ukbtno'] ?? '0000',
+      ukbtno: data['ukbtno'] ?? '',
+      isAdmin: data['admin'] ?? false,
+      tournamentHistory: List<Map<String, dynamic>>.from(data['tournamentHistory'] ?? []),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'name': name,
       'email': email,
-      'elo': elo,
-      'admin': admin,
       'ukbtno': ukbtno,
+      'isAdmin': isAdmin,
+      'tournamentHistory': tournamentHistory,
     };
   }
 }

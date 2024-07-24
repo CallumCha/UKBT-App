@@ -263,8 +263,6 @@ Future<void> createNextKnockoutMatchesOrFinalize(String tournamentId) async {
 
   List<QueryDocumentSnapshot> allMatches = knockoutMatchesSnapshot.docs;
 
-  // Check if the final match exists and is completed
-
   // Create final standings
   List<Map<String, dynamic>> finalStandings = await createFinalStandings(tournamentId, allMatches);
 
@@ -275,39 +273,43 @@ Future<void> createNextKnockoutMatchesOrFinalize(String tournamentId) async {
   });
 
   print("Final standings created and tournament marked as completed");
-}
 
-Future<void> createNextRoundOfMatches(String tournamentId, List<QueryDocumentSnapshot> allMatches) async {
-  List<String> winners = allMatches.where((match) => match['winner'] != '').map((match) => match['winner'] as String).toList();
+  // Update user documents with tournament history
+  for (var standing in finalStandings) {
+    String teamId = standing['team'];
+    int position = standing['position'];
+    String tournamentName = await getTournamentName(tournamentId);
+    Timestamp date = await getTournamentDate(tournamentId);
 
-  String nextRoundName;
-  if (winners.length == 4) {
-    nextRoundName = 'Semi Finals';
-  } else if (winners.length == 2) {
-    nextRoundName = 'Final';
-  } else {
-    print("Unexpected number of winners: ${winners.length}");
-    return;
+    QuerySnapshot teamSnapshot = await FirebaseFirestore.instance.collection('teams').where('id', isEqualTo: teamId).get();
+    if (teamSnapshot.docs.isNotEmpty) {
+      Map<String, dynamic> teamData = teamSnapshot.docs.first.data() as Map<String, dynamic>;
+      String user1Id = teamData['user1'];
+      String user2Id = teamData['user2'];
+
+      await updateUserTournamentHistory(user1Id, {
+        'tournamentId': tournamentId,
+        'tournamentName': tournamentName,
+        'date': date,
+        'position': position,
+        'partner': {
+          'id': user2Id,
+          'name': await getUserName(user2Id)
+        }
+      });
+
+      await updateUserTournamentHistory(user2Id, {
+        'tournamentId': tournamentId,
+        'tournamentName': tournamentName,
+        'date': date,
+        'position': position,
+        'partner': {
+          'id': user1Id,
+          'name': await getUserName(user1Id)
+        }
+      });
+    }
   }
-
-  List<List<String>> nextRoundMatches = [];
-  for (int i = 0; i < winners.length; i += 2) {
-    nextRoundMatches.add([
-      winners[i],
-      winners[i + 1]
-    ]);
-  }
-
-  for (var match in nextRoundMatches) {
-    await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).collection('knockout_matches').add({
-      'team1': match[0],
-      'team2': match[1],
-      'winner': '',
-      'round': nextRoundName,
-    });
-  }
-
-  print("Created $nextRoundName matches");
 }
 
 Future<List<Map<String, dynamic>>> createFinalStandings(String tournamentId, List<QueryDocumentSnapshot> allMatches) async {
@@ -386,4 +388,28 @@ Future<List<Map<String, dynamic>>> createFinalStandings(String tournamentId, Lis
   }
 
   return finalStandings;
+}
+
+Future<String> getTournamentName(String tournamentId) async {
+  DocumentSnapshot tournamentDoc = await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).get();
+  return tournamentDoc['name'];
+}
+
+Future<Timestamp> getTournamentDate(String tournamentId) async {
+  DocumentSnapshot tournamentDoc = await FirebaseFirestore.instance.collection('tournaments').doc(tournamentId).get();
+  return tournamentDoc['date'];
+}
+
+Future<String> getUserName(String userId) async {
+  DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+  return userDoc['name'];
+}
+
+Future<void> updateUserTournamentHistory(String userId, Map<String, dynamic> tournamentHistory) async {
+  DocumentReference userDocRef = FirebaseFirestore.instance.collection('users').doc(userId);
+  await userDocRef.update({
+    'tournamentHistory': FieldValue.arrayUnion([
+      tournamentHistory
+    ])
+  });
 }
