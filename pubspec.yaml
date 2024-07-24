@@ -25,6 +25,8 @@ dependencies:
   rxdart: ^0.27.7
   json_annotation: ^4.9.0
   intl: ^0.19.0
+  url_launcher: ^6.1.10
+  flutter_inappwebview: ^5.7.2+3  # Added this line
 
 dev_dependencies:
   flutter_test:
