@@ -15,6 +15,7 @@ class TournamentScreen extends StatefulWidget {
 class _TournamentScreenState extends State<TournamentScreen> {
   List<Tournament> tournaments = [];
   bool isAdmin = false;
+  String _selectedFilter = 'upcoming';
 
   @override
   void initState() {
@@ -35,13 +36,21 @@ class _TournamentScreenState extends State<TournamentScreen> {
 
   Future<void> _fetchTournaments() async {
     final snapshot = await FirebaseFirestore.instance.collection('tournaments').get();
+    final now = DateTime.now();
     setState(() {
       tournaments = snapshot.docs.map((doc) => Tournament.fromDocument(doc)).toList();
+      tournaments = tournaments.where((tournament) {
+        if (_selectedFilter == 'upcoming') {
+          return tournament.date != null && tournament.date!.isAfter(now);
+        } else {
+          return tournament.date == null || tournament.date!.isBefore(now);
+        }
+      }).toList();
       tournaments.sort((a, b) {
         if (a.date == null && b.date == null) return 0;
         if (a.date == null) return 1;
         if (b.date == null) return -1;
-        return a.date!.compareTo(b.date!);
+        return _selectedFilter == 'upcoming' ? a.date!.compareTo(b.date!) : b.date!.compareTo(a.date!);
       });
     });
   }
@@ -184,6 +193,35 @@ class _TournamentScreenState extends State<TournamentScreen> {
               onPressed: _showCreateTournamentDialog,
               child: const Text('Create Tournament'),
             ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FilterChip(
+                  label: const Text('Upcoming'),
+                  selected: _selectedFilter == 'upcoming',
+                  onSelected: (selected) {
+                    setState(() {
+                      _selectedFilter = 'upcoming';
+                      _fetchTournaments();
+                    });
+                  },
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: const Text('Past'),
+                  selected: _selectedFilter == 'past',
+                  onSelected: (selected) {
+                    setState(() {
+                      _selectedFilter = 'past';
+                      _fetchTournaments();
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
           Expanded(
             child: ListView.builder(
               itemCount: tournaments.length,
