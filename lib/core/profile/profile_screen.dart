@@ -5,6 +5,8 @@ import 'package:ukbtapp/shared/bottom_nav.dart';
 import 'package:ukbtapp/core/auth/models/user_model.dart';
 import 'package:ukbtapp/core/widgets/tournament_history_widget.dart';
 import 'dart:math';
+import 'package:intl/intl.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -74,6 +76,98 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Widget _buildEloChart() {
+    if (_user == null || _user!.rankChanges.isEmpty) {
+      return const Text('No ELO data available');
+    }
+
+    List<FlSpot> spots = [];
+    int baseElo = _user!.elo;
+    for (int i = _user!.rankChanges.length - 1; i >= 0; i--) {
+      spots.add(FlSpot((_user!.rankChanges.length - 1 - i).toDouble(), baseElo.toDouble()));
+      baseElo -= _user!.rankChanges[i]['change'] as int;
+    }
+
+    double minY = spots.map((spot) => spot.y).reduce((a, b) => a < b ? a : b);
+    double maxY = spots.map((spot) => spot.y).reduce((a, b) => a > b ? a : b);
+
+    return SizedBox(
+      height: 200,
+      child: LineChart(
+        LineChartData(
+          gridData: FlGridData(show: false),
+          titlesData: FlTitlesData(
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (value, meta) {
+                  if (value == 0 || value == spots.length - 1) {
+                    return Text(
+                      value.toInt().toString(),
+                      style: TextStyle(color: Colors.white, fontSize: 10),
+                    );
+                  }
+                  return const SizedBox();
+                },
+                reservedSize: 22,
+              ),
+            ),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (value, meta) => Text(
+                  value.toInt().toString(),
+                  style: TextStyle(color: Colors.white, fontSize: 10),
+                ),
+                reservedSize: 30,
+              ),
+            ),
+            topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          ),
+          borderData: FlBorderData(show: false),
+          minX: 0,
+          maxX: spots.length.toDouble() - 1,
+          minY: minY - 50,
+          maxY: maxY + 50,
+          lineBarsData: [
+            LineChartBarData(
+              spots: spots,
+              isCurved: false,
+              color: Colors.lightBlue,
+              barWidth: 2,
+              isStrokeCapRound: true,
+              dotData: FlDotData(show: false),
+              belowBarData: BarAreaData(
+                show: true,
+                color: Colors.lightBlue.withOpacity(0.3),
+              ),
+            ),
+          ],
+          lineTouchData: LineTouchData(enabled: false),
+        ),
+      ),
+    );
+  }
+
+  String _getMonthAbbreviation(int month) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return months[month - 1];
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isGuestUser) {
@@ -127,18 +221,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Text(_user!.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     Text(_user!.email),
                     Text('Admin (user type)', style: const TextStyle(fontStyle: FontStyle.italic)),
+                    const SizedBox(height: 16),
+                    Text('ELO Rating: ${_user!.elo}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 16),
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16.0),
-              height: 100,
-              color: Colors.grey[300],
-              child: const Center(child: Text('Placeholder box')),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Text('ELO Changes (Last 30 Matches)', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
-            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: _buildEloChart(),
+            ),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -168,24 +265,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         final tournament = _tournaments[index];
                         final position = tournament['position'];
                         return ListTile(
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                          minVerticalPadding: 0,
+                          dense: true,
                           leading: Container(
-                            width: 40,
-                            height: 40,
+                            width: 28,
+                            height: 28,
                             color: _getPositionColor(position),
                             child: Center(
                               child: Text(
                                 '$position',
                                 style: TextStyle(
                                   color: _getTextColor(position),
-                                  fontSize: 20, // Increased font size
+                                  fontSize: 14,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ),
                           ),
-                          title: Text(tournament['tournamentName']),
-                          subtitle: Text('Partner: ${tournament['partner']['name']}'),
-                          trailing: Text(_formatDate(tournament['date'])),
+                          title: Text(
+                            tournament['tournamentName'],
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            'Partner: ${tournament['partner']['name']}',
+                            style: TextStyle(fontSize: 11),
+                          ),
+                          trailing: Text(
+                            _formatDate(tournament['date']),
+                            style: TextStyle(fontSize: 11),
+                          ),
                         );
                       },
                     ),

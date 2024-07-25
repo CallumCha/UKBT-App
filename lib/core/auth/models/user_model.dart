@@ -7,6 +7,8 @@ class User {
   final String ukbtno;
   final bool isAdmin;
   final List<Map<String, dynamic>> tournamentHistory;
+  int elo;
+  List<Map<String, dynamic>> rankChanges;
 
   User({
     required this.id,
@@ -15,6 +17,8 @@ class User {
     required this.ukbtno,
     required this.isAdmin,
     required this.tournamentHistory,
+    this.elo = 1500,
+    this.rankChanges = const [],
   });
 
   factory User.fromDocument(DocumentSnapshot doc) {
@@ -26,6 +30,8 @@ class User {
       ukbtno: data['ukbtno'] ?? '',
       isAdmin: data['admin'] ?? false,
       tournamentHistory: List<Map<String, dynamic>>.from(data['tournamentHistory'] ?? []),
+      elo: data['elo'] ?? 1500,
+      rankChanges: List<Map<String, dynamic>>.from(data['rankChanges'] ?? []),
     );
   }
 
@@ -37,6 +43,8 @@ class User {
       'ukbtno': ukbtno,
       'isAdmin': isAdmin,
       'tournamentHistory': tournamentHistory,
+      'elo': elo,
+      'rankChanges': rankChanges,
     };
   }
 }

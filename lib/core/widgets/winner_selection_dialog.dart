@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ukbtapp/core/widgets/tournament_helpers.dart'; // Import the helper functions
+import 'package:ukbtapp/core/auth/firestore_service.dart'; // Add this import
+import 'package:ukbtapp/core/elo_calculator.dart'; // Import the EloCalculator class
 
 class WinnerSelectionDialog extends StatefulWidget {
   final String tournamentId;
@@ -27,6 +29,8 @@ class WinnerSelectionDialog extends StatefulWidget {
 }
 
 class _WinnerSelectionDialogState extends State<WinnerSelectionDialog> {
+  final FirestoreService _firestoreService = FirestoreService(); // Add this line
+
   String? selectedWinner;
 
   @override
@@ -67,35 +71,20 @@ class _WinnerSelectionDialogState extends State<WinnerSelectionDialog> {
         ),
         ElevatedButton(
           onPressed: () async {
-            if (selectedWinner != null) {
-              try {
-                DocumentReference matchDocRef = getMatchDocRef(widget.tournamentId, widget.poolName, widget.matchId);
+            if (selectedWinner != null && selectedWinner!.isNotEmpty) {
+              await getMatchDocRef(widget.tournamentId, widget.poolName, widget.matchId).update({
+                'winner': selectedWinner,
+              });
 
-                // Check if the document exists
-                DocumentSnapshot matchDoc = await matchDocRef.get();
-                if (!matchDoc.exists) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Match document not found: ${widget.matchId}')),
-                  );
-                  return;
-                }
+              await _updateMatchResultAndElo(widget.matchId, selectedWinner!);
 
-                await matchDocRef.update({
-                  'winner': selectedWinner
-                });
-
-                if (widget.poolName != 'knockout') {
-                  await updatePoolMatches(widget.tournamentId, selectedWinner!);
-                } else {
-                  await updateKnockoutMatch(widget.tournamentId);
-                }
-
-                Navigator.of(context).pop(selectedWinner);
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error: ${e.toString()}')),
-                );
+              if (widget.poolName == 'knockout') {
+                await updateKnockoutMatch(widget.tournamentId);
+              } else {
+                await updatePoolMatches(widget.tournamentId, selectedWinner!);
               }
+
+              Navigator.of(context).pop(selectedWinner);
             }
           },
           child: const Text('Confirm'),
@@ -193,6 +182,77 @@ class _WinnerSelectionDialogState extends State<WinnerSelectionDialog> {
     } else {
       print("Error: Couldn't determine finalists. Found ${finalists.length} winners in semifinals.");
     }
+  }
+
+  Future<void> _updateMatchResultAndElo(String matchId, String winnerId) async {
+    print("Starting _updateMatchResultAndElo for match: $matchId, winner: $winnerId");
+    final matchDoc = await getMatchDocRef(widget.tournamentId, widget.poolName, matchId).get();
+    final matchData = matchDoc.data() as Map<String, dynamic>?;
+
+    if (matchData?.isEmpty ?? true) {
+      print('Match document not found or is empty');
+      return;
+    }
+
+    final team1Id = matchData!['team1'];
+    final team2Id = matchData['team2'];
+
+    final team1Doc = await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).collection('teams').doc(team1Id).get();
+    final team2Doc = await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).collection('teams').doc(team2Id).get();
+
+    final user1Doc = await FirebaseFirestore.instance.collection('users').doc(team1Doc['player1']).get();
+    final user2Doc = await FirebaseFirestore.instance.collection('users').doc(team1Doc['player2']).get();
+    final user3Doc = await FirebaseFirestore.instance.collection('users').doc(team2Doc['player1']).get();
+    final user4Doc = await FirebaseFirestore.instance.collection('users').doc(team2Doc['player2']).get();
+
+    final user1Elo = user1Doc.data()?.containsKey('elo') == true ? user1Doc['elo'] as int : 1500;
+    final user2Elo = user2Doc.data()?.containsKey('elo') == true ? user2Doc['elo'] as int : 1500;
+    final user3Elo = user3Doc.data()?.containsKey('elo') == true ? user3Doc['elo'] as int : 1500;
+    final user4Elo = user4Doc.data()?.containsKey('elo') == true ? user4Doc['elo'] as int : 1500;
+
+    final team1Elo = (user1Elo + user2Elo) ~/ 2;
+    final team2Elo = (user3Elo + user4Elo) ~/ 2;
+
+    final team1Won = winnerId == team1Id;
+    final eloChanges = EloCalculator.calculateEloChange(team1Elo, team2Elo, team1Won);
+
+    await matchDoc.reference.update({
+      'winner': winnerId,
+      'completed': true,
+    });
+
+    await _updateUserElo(user1Doc.reference, user1Elo + eloChanges[0], eloChanges[0]);
+    await _updateUserElo(user2Doc.reference, user2Elo + eloChanges[0], eloChanges[0]);
+    await _updateUserElo(user3Doc.reference, user3Elo + eloChanges[1], eloChanges[1]);
+    await _updateUserElo(user4Doc.reference, user4Elo + eloChanges[1], eloChanges[1]);
+
+    print("Finished _updateMatchResultAndElo");
+  }
+
+  Future<void> _updateUserElo(DocumentReference userRef, int newElo, int eloChange) async {
+    final userData = await userRef.get();
+    final data = userData.data() as Map<String, dynamic>?;
+    List<Map<String, dynamic>> rankChanges;
+
+    if (data != null && data.containsKey('rankChanges')) {
+      rankChanges = List<Map<String, dynamic>>.from(data['rankChanges'] ?? []);
+    } else {
+      rankChanges = [];
+    }
+
+    rankChanges.insert(0, {
+      'date': Timestamp.now(),
+      'change': eloChange,
+    });
+
+    if (rankChanges.length > 30) {
+      rankChanges = rankChanges.sublist(0, 30);
+    }
+
+    await userRef.update({
+      'elo': newElo,
+      'rankChanges': rankChanges,
+    });
   }
 }
 

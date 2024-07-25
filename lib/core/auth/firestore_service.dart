@@ -1,6 +1,7 @@
 // lib/core/auth/firestore_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ukbtapp/core/elo_calculator.dart'; // Updated import path
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -19,6 +20,7 @@ class FirestoreService {
           'email': email,
           'elo': 1200,
           'isAdmin': false,
+          'rankChanges': [],
         });
       }
     } catch (e) {
@@ -92,15 +94,19 @@ class FirestoreService {
     }
   }
 
-  Future<void> updateMatchResultAndElo(String matchId, int score1, int score2) async {
-    final matchRef = _db.collection('matches').doc(matchId);
+  Future<void> updateMatchResultAndElo(String tournamentId, String poolName, String matchId, int score1, int score2) async {
+    print("Starting updateMatchResultAndElo for match: $matchId");
+    final matchRef = poolName == 'knockout' ? _db.collection('tournaments').doc(tournamentId).collection('knockout_matches').doc(matchId) : _db.collection('tournaments').doc(tournamentId).collection('pools').doc(poolName).collection('pool_matches').doc(matchId);
     final matchDoc = await matchRef.get();
     final matchData = matchDoc.data()!;
+    print("Match data: $matchData");
 
     final team1Ref = _db.collection('teams').doc(matchData['team1']);
     final team2Ref = _db.collection('teams').doc(matchData['team2']);
     final team1Doc = await team1Ref.get();
     final team2Doc = await team2Ref.get();
+    print("Team 1 data: ${team1Doc.data()}");
+    print("Team 2 data: ${team2Doc.data()}");
 
     final user1Ref = _db.collection('users').doc(team1Doc['user1']);
     final user2Ref = _db.collection('users').doc(team1Doc['user2']);
@@ -112,65 +118,78 @@ class FirestoreService {
     final user3Doc = await user3Ref.get();
     final user4Doc = await user4Ref.get();
 
+    print("User 1 data: ${user1Doc.data()}");
+    print("User 2 data: ${user2Doc.data()}");
+    print("User 3 data: ${user3Doc.data()}");
+    print("User 4 data: ${user4Doc.data()}");
+
     final user1Elo = user1Doc['elo'] as int;
     final user2Elo = user2Doc['elo'] as int;
     final user3Elo = user3Doc['elo'] as int;
     final user4Elo = user4Doc['elo'] as int;
 
-    final team1Elo = (user1Elo + user2Elo) / 2;
-    final team2Elo = (user3Elo + user4Elo) / 2;
+    print("Initial ELOs - User1: $user1Elo, User2: $user2Elo, User3: $user3Elo, User4: $user4Elo");
 
-    final team1Score = score1 > score2
-        ? 1.0
-        : score1 == score2
-            ? 0.5
-            : 0.0;
-    final team2Score = score2 > score1
-        ? 1.0
-        : score1 == score2
-            ? 0.5
-            : 0.0;
+    final team1Elo = (user1Elo + user2Elo) ~/ 2;
+    final team2Elo = (user3Elo + user4Elo) ~/ 2;
 
-    final List<double> newElo = calculateElo(team1Elo, team2Elo, team1Score, team2Score);
+    print("Team ELOs - Team1: $team1Elo, Team2: $team2Elo");
 
-    final newTeam1Elo = newElo[0];
-    final newTeam2Elo = newElo[1];
+    final team1Won = score1 > score2;
+    final eloChanges = EloCalculator.calculateEloChange(team1Elo, team2Elo, team1Won);
 
-    final newUser1Elo = user1Elo + (newTeam1Elo - team1Elo);
-    final newUser2Elo = user2Elo + (newTeam1Elo - team1Elo);
-    final newUser3Elo = user3Elo + (newTeam2Elo - team2Elo);
-    final newUser4Elo = user4Elo + (newTeam2Elo - team2Elo);
+    print("ELO changes: $eloChanges");
+
+    final newUser1Elo = user1Elo + eloChanges[0];
+    final newUser2Elo = user2Elo + eloChanges[0];
+    final newUser3Elo = user3Elo + eloChanges[1];
+    final newUser4Elo = user4Elo + eloChanges[1];
+
+    print("New ELOs - User1: $newUser1Elo, User2: $newUser2Elo, User3: $newUser3Elo, User4: $newUser4Elo");
 
     await matchRef.update({
       'score1': score1,
       'score2': score2,
       'completed': true,
+      'winner': team1Won ? matchData['team1'] : matchData['team2'],
     });
 
-    await user1Ref.update({
-      'elo': newUser1Elo.toInt()
-    });
-    await user2Ref.update({
-      'elo': newUser2Elo.toInt()
-    });
-    await user3Ref.update({
-      'elo': newUser3Elo.toInt()
-    });
-    await user4Ref.update({
-      'elo': newUser4Elo.toInt()
-    });
+    print("Updating user ELOs and rank changes");
+    await _updateUserElo(user1Ref, newUser1Elo, eloChanges[0]);
+    await _updateUserElo(user2Ref, newUser2Elo, eloChanges[0]);
+    await _updateUserElo(user3Ref, newUser3Elo, eloChanges[1]);
+    await _updateUserElo(user4Ref, newUser4Elo, eloChanges[1]);
+
+    print("Finished updateMatchResultAndElo");
   }
 
-  List<double> calculateElo(double rating1, double rating2, double score1, double score2) {
-    const int kFactor = 32;
-    final expected1 = 1 / (1 + (10 ^ ((rating2 - rating1) / 400).toInt()));
-    final expected2 = 1 / (1 + (10 ^ ((rating1 - rating2) / 400).toInt()));
-    final newRating1 = rating1 + kFactor * (score1 - expected1);
-    final newRating2 = rating2 + kFactor * (score2 - expected2);
-    return [
-      newRating1,
-      newRating2
-    ];
+  Future<void> _updateUserElo(DocumentReference userRef, int newElo, int eloChange) async {
+    print("Starting _updateUserElo for user: ${userRef.id}");
+    final userDoc = await userRef.get();
+    final userData = userDoc.data() as Map<String, dynamic>;
+    print("Current user data: $userData");
+
+    List<Map<String, dynamic>> rankChanges = List<Map<String, dynamic>>.from(userData['rankChanges'] ?? []);
+    print("Current rank changes: $rankChanges");
+
+    rankChanges.insert(0, {
+      'date': Timestamp.now(),
+      'change': eloChange,
+    });
+
+    if (rankChanges.length > 30) {
+      rankChanges = rankChanges.sublist(0, 30);
+    }
+
+    print("New rank changes: $rankChanges");
+    print("New ELO: $newElo");
+
+    await userRef.update({
+      'elo': newElo,
+      'rankChanges': rankChanges,
+    });
+
+    print("Finished _updateUserElo for user: ${userRef.id}");
   }
 
   Future<void> transitionToKnockout(String tournamentId) async {
