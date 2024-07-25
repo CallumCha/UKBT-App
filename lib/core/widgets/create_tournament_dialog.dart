@@ -36,7 +36,6 @@ class _CreateTournamentDialogState extends State<CreateTournamentDialog> {
 
   @override
   Widget build(BuildContext context) {
-    print("CreateTournamentDialog build method called");
     return AlertDialog(
       title: const Text('Create Tournament'),
       content: Stack(
@@ -122,14 +121,12 @@ class _CreateTournamentDialogState extends State<CreateTournamentDialog> {
       actions: [
         TextButton(
           onPressed: () {
-            print("Cancel button pressed");
             Navigator.of(context).pop();
           },
           child: const Text('Cancel'),
         ),
         ElevatedButton(
           onPressed: () {
-            print("Create button pressed");
             _createTournament();
           },
           child: const Text('Create'),

@@ -16,7 +16,7 @@ class LoginScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const FlutterLogo(size: 150),
+              Image.asset('assets/UKBTLogo.png', width: 200, height: 200),
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 icon: const Icon(FontAwesomeIcons.userNinja, color: Colors.white),

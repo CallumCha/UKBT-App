@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:ukbtapp/shared/bottom_nav.dart';
-import 'package:ukbtapp/core/widgets/update_all_users_tournament_history.dart';
 import 'package:ukbtapp/core/auth/models/tournament_model.dart';
 import 'package:ukbtapp/core/registration_page.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -60,19 +59,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _updateTournamentHistory(BuildContext context) async {
-    try {
-      await updateAllUsersTournamentHistory();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tournament history updated successfully')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating tournament history: $e')),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -124,12 +110,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
             const SizedBox(height: 20),
-            Center(
-              child: ElevatedButton(
-                onPressed: () => _updateTournamentHistory(context),
-                child: const Text('Update Tournament History'),
-              ),
-            ),
             const Padding(
               padding: EdgeInsets.all(16.0),
               child: Text(

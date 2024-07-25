@@ -155,15 +155,11 @@ class _WinnerSelectionDialogState extends State<WinnerSelectionDialog> {
         'lastUpdated': FieldValue.serverTimestamp(),
       });
 
-      print("All knockout matches completed, including final. Tournament updated");
       Navigator.of(context).pop(selectedWinner);
     } else if (allKnockoutMatchesCompleted && !finalMatchCompleted) {
       // If all matches except the final are completed, create the final match
       await createFinalMatch(tournamentId);
-      print("All knockout matches completed except final. Final match created.");
-    } else {
-      print("Not all knockout matches are completed yet");
-    }
+    } else {}
   }
 
   Future<void> createFinalMatch(String tournamentId) async {
