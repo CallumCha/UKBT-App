@@ -2,14 +2,15 @@
 
 
 
+https://github.com/user-attachments/assets/61074915-46f7-4135-944e-b3fb28b31ada
 
-https://github.com/user-attachments/assets/12c6d313-b5e4-4bab-b439-8f3b9b079213
 
 
 
 
 UKBT app for tournaments
 =======
+
 ### A beach volleyball app to register players for tournaments.
 
 This app will allow users to sign up with a partner for a beach volleyball tournament, and adjust an athlete's ELO based on where they came in the tournament and the level of the tournament.
