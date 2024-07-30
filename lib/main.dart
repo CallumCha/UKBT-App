@@ -36,6 +36,7 @@ class MyApp extends StatelessWidget {
             initialRoute: '/',
             onGenerateRoute: Routes.generateRoute,
             home: const AuthWrapper(),
+            debugShowCheckedModeBanner: false,
           );
         },
       ),
