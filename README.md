@@ -41,7 +41,7 @@ https://towardsdatascience.com/developing-an-elo-based-data-driven-ranking-syste
 
 
 ### Figma Designs
-![Home page](https://github.com/user-attachments/assets/c8d568a2-376d-4f9c-aae8-c1ae7e8a7a58)
-![Group 13](https://github.com/user-attachments/assets/d99cf065-dc15-4c3f-b726-586149c07cbd)
-![Profile desig](https://github.com/user-attachments/assets/7814adfc-7d3d-4196-8138-187490cd04f1)
-![Leader Board Page](https://github.com/user-attachments/assets/b77afa69-3eac-453a-808f-f189037f7bbf)
+<img src="https://github.com/user-attachments/assets/c8d568a2-376d-4f9c-aae8-c1ae7e8a7a58" width="200">
+<img src="https://github.com/user-attachments/assets/d99cf065-dc15-4c3f-b726-586149c07cbd" width="200">
+<img src="https://github.com/user-attachments/assets/7814adfc-7d3d-4196-8138-187490cd04f1" width="200">
+<img src="https://github.com/user-attachments/assets/b77afa69-3eac-453a-808f-f189037f7bbf" width="200">
