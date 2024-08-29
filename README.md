@@ -1,47 +1,54 @@
+# UKBT App for Tournaments
 
+## Overview
 
-https://github.com/user-attachments/assets/61074915-46f7-4135-944e-b3fb28b31ada
+A beach volleyball app to register players for tournaments, manage tournament processes, and track player rankings using an ELO system.
 
+### Key Features
 
+- Player registration for tournaments with partners
+- Automatic seeding and knockout match creation based on pool results
+- ELO ranking system for players
+- Streamlined tournament management
 
+## Motivation
 
+This app aims to modernize and accelerate the current tournament registration and management process in beach volleyball. By automating seeding and match creation, we can significantly improve the efficiency of tournament operations.
 
-UKBT app for tournaments
-=======
+## ELO Ranking System
 
-### A beach volleyball app to register players for tournaments.
+- ELO is a rating assigned to each player
+- ELO updates after every match, with changes visible at the end of a tournament
+- Player profiles display ELO history (last 90/150/365 days)
 
-This app will allow users to sign up with a partner for a beach volleyball tournament, and adjust an athlete's ELO based on where they came in the tournament and the level of the tournament.
+### To Be Decided
+- Should ELO changes be displayed for each match? Only for matches the player participated in?
+- Should the ELO of all tournament participants be visible?
 
-I wanted to create this App because the current tournament registration and the tournament management itself is a slow process this app will automatically seed players and then create knockout matches based on the results of the pools.
+For more information on the ELO system implementation, see [this article](https://towardsdatascience.com/developing-an-elo-based-data-driven-ranking-system-for-2v2-multiplayer-games-7689f7d42a53).
 
-#### ELO ranking 
-- ~~ELO is a rating assigned to each player.~~
-- ~~ELO is updated every match you play but will only see these Elo changes at the end of a tournament?~~ Should I display they elo changes for each match ? only if they are in the match?
-- ~~On that user's profile page you can see the last 90? 150? 365? days of their elo change. Tournament jump or match jumps?~~
-- Should you see the ELO of everyone who is playing in the tournament?
-https://towardsdatascience.com/developing-an-elo-based-data-driven-ranking-system-for-2v2-multiplayer-games-7689f7d42a53
+## Planned Features
 
-#### Tournament matches
-- Have a 'your matches' chip?
-- Display your matches on the home page?
-- ~~better layout fot tournament tabs~~
+### Tournament Matches
+- Implement a 'Your Matches' feature
+- Display user's matches on the home page
+- Improve layout for tournament tabs
 
-#### Rankings
-- Show everyones ELO on the UKBT
-- you and your position at the top with ability to jump to your position.
+### Rankings
+- Display everyone's ELO on the UKBT
+- Show user's position with quick navigation to their ranking
 
-#### Home Screen
-- ~~your upcoming tournaments (within month)~~
-- upcoming matches within day?
+### Home Screen
+- Display upcoming tournaments (within the month)
+- Show upcoming matches (within the day)
 
-#### Matches
-- Referee team
-- Score rather than win or loss
+### Matches
+- Include referee team information
+- Use actual scores instead of just win/loss
 
+## Figma Designs
 
-### Figma Designs
-<img src="https://github.com/user-attachments/assets/c8d568a2-376d-4f9c-aae8-c1ae7e8a7a58" width="200">
-<img src="https://github.com/user-attachments/assets/d99cf065-dc15-4c3f-b726-586149c07cbd" width="200">
-<img src="https://github.com/user-attachments/assets/7814adfc-7d3d-4196-8138-187490cd04f1" width="200">
-<img src="https://github.com/user-attachments/assets/b77afa69-3eac-453a-808f-f189037f7bbf" width="200">
+<img src="https://github.com/user-attachments/assets/c8d568a2-376d-4f9c-aae8-c1ae7e8a7a58" width="200" alt="Design 1">
+<img src="https://github.com/user-attachments/assets/d99cf065-dc15-4c3f-b726-586149c07cbd" width="200" alt="Design 2">
+<img src="https://github.com/user-attachments/assets/7814adfc-7d3d-4196-8138-187490cd04f1" width="200" alt="Design 3">
+<img src="https://github.com/user-attachments/assets/b77afa69-3eac-453a-808f-f189037f7bbf" width="200" alt="Design 4">
